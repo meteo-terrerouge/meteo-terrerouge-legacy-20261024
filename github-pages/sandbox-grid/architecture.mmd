@@ -1,0 +1,54 @@
+%%{init: {
+  "theme": "base",
+  "flowchart": {
+    "curve": "basis",
+    "nodeSpacing": 25,
+    "rankSpacing": 75,
+    "padding": 20
+  },
+  "themeVariables": {
+    "fontFamily": "Inter, system-ui, sans-serif",
+    "fontSize": "15px",
+    "lineColor": "#397f9e",
+    "primaryTextColor": "#173f57"
+  }
+}}%%
+
+flowchart LR
+    subgraph API["APIs"]
+        direction TB
+        C["Météo-France"]
+        D["EUMETSAT"]
+        H["Open-Meteo"]
+
+        C ~~~ D
+        D ~~~ H
+    end
+
+    subgraph S["Serveur 1&1"]
+        direction TB
+        E["Demande des données"]
+        F["Réception et vérification"]
+        B["Traitement des données"]
+        G["Cache et création du JSON"]
+
+        E --> F --> B --> G
+    end
+
+    A["meteo-lestatins.github.io"]
+
+    API <-->|"Requêtes<br/>Données"| S
+    S <-->|"HTTPS<br/>JSON"| A
+
+    classDef source fill:#fff8e8,stroke:#d9a12f,color:#173f57,stroke-width:2px;
+    classDef server fill:#eaf5f9,stroke:#4b9dbd,color:#173f57,stroke-width:2px;
+    classDef output fill:#eaf7f0,stroke:#55a378,color:#173f57,stroke-width:2px;
+    classDef site fill:#ffffff,stroke:#9dbdca,color:#173f57,stroke-width:2px;
+
+    class C,D,H source;
+    class E,F,B server;
+    class G output;
+    class A site;
+
+    style API fill:#fffdf7,stroke:#e2bb58,stroke-width:2px
+    style S fill:#f3f9fb,stroke:#55a3c1,stroke-width:2.5px

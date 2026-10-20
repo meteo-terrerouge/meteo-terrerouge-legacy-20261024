@@ -1,0 +1,9 @@
+.three-hour-overview{display:block}
+.three-hour-overview>.three-hour-summary{width:100%;min-width:0}
+.horizon-detail-scroll{overflow-x:auto;margin:0 28px;padding:0 1px}
+.horizon-detail-track{min-width:780px}
+.horizon-detail-track .now-chart{margin-inline:0}
+.horizon-detail-track .rain-axis{display:block;margin:6px 0 0}
+.horizon-detail-track .horizon-axis{height:24px}
+@media(max-width:900px){.horizon-detail-scroll{margin-inline:16px}}
+@media(max-width:700px){.horizon-detail-scroll{margin-inline:10px}}

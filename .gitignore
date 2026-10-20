@@ -1,0 +1,14 @@
+.env
+node_modules/
+.cache/
+.server-current/
+admin-fix/
+/data/
+cloud-label.txt
+meteocons-gallery.png
+weather-variants-gallery.png
+github-pages/dist/
+github-pages/sandbox-dist/
+github-pages/testing-dist/
+github-pages/release-dist/
+github-pages/repository/

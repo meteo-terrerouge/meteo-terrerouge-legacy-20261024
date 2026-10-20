@@ -1,0 +1,74 @@
+name: Préparer les sites météo
+
+# First stage: manual collection and downloadable builds only. No deployment,
+# push or recurring run is enabled by adding this file.
+on:
+  workflow_dispatch:
+    inputs:
+      site:
+        description: Lieu à préparer
+        type: choice
+        options: [terre-rouge, tatins, both]
+        default: terre-rouge
+      group:
+        description: Sources à vérifier (les caches encore valides sont réutilisés)
+        type: choice
+        options: [all, piaf, forecast]
+        default: all
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        site: ${{ fromJSON(inputs.site == 'both' && '["tatins","terre-rouge"]' || format('["{0}"]', inputs.site)) }}
+    concurrency:
+      group: weather-prepare-${{ matrix.site }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/cache/restore@v6
+        with:
+          path: .cache/weather-state/${{ matrix.site }}.json
+          key: weather-state-v1-${{ matrix.site }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: weather-state-v1-${{ matrix.site }}-
+      - name: Collecter les données Météo-France
+        id: collection
+        continue-on-error: true
+        env:
+          SITE_ID: ${{ matrix.site }}
+          SOURCE_GROUP: ${{ inputs.group }}
+          METEO_FRANCE_API_KEY: ${{ secrets[format('METEO_FRANCE_API_KEY_{0}', matrix.site == 'tatins' && 'TATINS' || 'TERRE_ROUGE')] }}
+        run: node scripts/collect-weather.mjs --site="$SITE_ID" --group="$SOURCE_GROUP" --state=".cache/weather-state/$SITE_ID.json" --output=".cache/weather-state/$SITE_ID.json"
+      - name: Conserver les acquisitions réussies, même après un échec partiel
+        if: always() && hashFiles(format('.cache/weather-state/{0}.json', matrix.site)) != ''
+        uses: actions/cache/save@v6
+        with:
+          path: .cache/weather-state/${{ matrix.site }}.json
+          key: weather-state-v1-${{ matrix.site }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Générer le site avec les dernières données valides
+        if: always() && hashFiles(format('.cache/weather-state/{0}.json', matrix.site)) != ''
+        env:
+          SITE_ID: ${{ matrix.site }}
+        run: node scripts/prepare-site.mjs --site="$SITE_ID" --state=".cache/weather-state/$SITE_ID.json"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: site-${{ matrix.site }}
+          path: .cache/sites/${{ matrix.site }}/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 3
+      - name: Signaler une collecte partielle
+        if: steps.collection.outcome == 'failure'
+        run: exit 1
