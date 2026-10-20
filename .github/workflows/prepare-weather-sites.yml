@@ -12,7 +12,7 @@ on:
       group:
         description: Sources à vérifier (les caches encore valides sont réutilisés)
         type: choice
-        options: [all, piaf, forecast]
+        options: [all, piaf, forecast, cached]
         default: all
       publish:
         description: Publier Terre Rouge sur Pages après vérification des données
@@ -47,6 +47,7 @@ jobs:
           key: weather-state-v1-${{ matrix.site }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: weather-state-v1-${{ matrix.site }}-
       - name: Collecter les données Météo-France
+        if: inputs.group != 'cached'
         id: collection
         continue-on-error: true
         env:

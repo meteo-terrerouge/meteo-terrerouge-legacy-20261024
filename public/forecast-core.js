@@ -35,7 +35,7 @@ export function prepareBasicForecast(data, now = Date.now()) {
     rainColorLevel: steps.length ? engine.rainIntensityStep(Math.max(0, ...steps.map(s => s.precipitation * 12))) : 0,
     rainDetail: steps.length ? 'PIAF · échéances encore à venir · ' + amount.toFixed(2) + ' mm' : 'PIAF : aucune échéance encore valide.',
     rainTrend: steps.length ? engine.shortTermRainTrend(steps.map(step => ({ ...step, seconds: (step.intervalEnd - now) / 1000 })), 'PIAF') : null,
-    stormCombinedLevel: storm ? 1 : 0, stormDetail: wind.length ? storm ? 'Signal orageux prévu par AROME ; sans localisation radar.' : 'Pas de signal orageux AROME sur les échéances disponibles.' : 'Prévision orageuse indisponible.',
+    stormCombinedLevel: storm ? 1 : 0, stormDetail: storm ? 'Orage possible au point de prévision du site.' : '',
     stormTrend: null, stormTrendDetail: '', stormEtaLabel: '', stormDurationLabel: '', stormEtaDetail: '',
     windValue: speed == null ? 'Indisponible' : `${Math.round(speed)} km/h`, windLevel, windColorLevel: windLevel >= 3 ? windLevel : 0,
     windDetail: speed == null ? 'AROME : aucune échéance disponible sur les trois prochaines heures.' : `AROME · vent maximal ${Math.round(speed)} km/h · rafales ${Math.round(gust)} km/h`,

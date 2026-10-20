@@ -528,3 +528,5 @@
 20/10/2026 21:08 — v3.249 — Code météo et composants graphiques partagés entre Les Tatins et Terre Rouge, avec un profil statique sans nowcasting.
 
 20/10/2026 21:21 — v3.250 — Les profils communs reprennent la présentation GitHub Pages actuelle, avec la frise trois heures et les mêmes styles et pictogrammes.
+
+20/10/2026 22:13 — v3.251 — Périodes passées conservées en grisé ; « Orage possible » au point Terre Rouge et pluie PIAF dans la frise ; retrait d’About et du numéro de version de l’en-tête Terre Rouge.

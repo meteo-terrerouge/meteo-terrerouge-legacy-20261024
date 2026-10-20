@@ -39,7 +39,7 @@ function sandboxSlotPresentation(slot, now) {
   const details = [];
   if (rain && qualifier) details.push(qualifier);
   if (storm) details.push(storm.label + (storm.intensity ? " · " + storm.intensity : ""));
-  if (slot.modelStorm) details.push("Signal AROME");
+  if (slot.modelStorm && title !== "Orage possible") details.push("Orage possible");
   if (slot.hail) {
     const hailQualifier = slot.hailLocalized == null ? shortTermRiskQualifier(slot.hailRisk).trim() : "possible";
     if (title !== "Grêle") details.push(["Grêle", hailQualifier].filter(Boolean).join(" "));

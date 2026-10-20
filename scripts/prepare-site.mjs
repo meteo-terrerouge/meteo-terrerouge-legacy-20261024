@@ -51,6 +51,7 @@ export async function prepareSite({ id, output, entry = {}, dataMode, releaseNum
   const runtime = { apiBase: dataMode === 'server' ? profile.apiBase : './', dataMode, site: profile, changelogUrl: 'changelog.html', releaseNumber };
   await writeFile(path.join(target, 'runtime-config.js'), `window.METEO_RUNTIME_CONFIG = Object.freeze(${JSON.stringify(runtime, null, 2)});\n`);
   let html = await readFile(path.join(target, 'index.html'), 'utf8');
+  html = html.replace(/app\.js\?v=\d+/, `app.js?v=${releaseNumber.replaceAll('.', '')}`);
   html = html.replaceAll('Météo les Tatins', profile.name).replaceAll('Les Tatins', profile.place)
     .replace(/\s*<a\b[^>]*class="admin-access"[^>]*>.*?<\/a>/g, '')
     .replace(/<script src="analytics.js\?v=4"><\/script>/, '')
@@ -66,20 +67,17 @@ export async function prepareSite({ id, output, entry = {}, dataMode, releaseNum
       .replace(/<meta name="description"[^>]*>/, `<meta name="description" content="Prévisions météo Météo-France pour ${profile.place} : températures, pluie et vent.">`)
       .replace(/\s*<link rel="preconnect"[^>]*>/g, '')
       .replace(/<button id="horizon-nowcast-toggle"[\s\S]*?<\/button>/, '')
-      .replace(/<nav class="header-info-links"[\s\S]*?<\/nav>/, '<nav class="header-info-links" aria-label="Pages d’information"><a href="about.html">About</a></nav>')
+      .replace(/<nav class="header-info-links"[\s\S]*?<\/nav>/, '')
+      .replace(/<a id="app-version"[^>]*>[\s\S]*?<\/a>/, '')
       .replaceAll('Prévisions quotidiennes sur 7 jours', 'Prévisions quotidiennes sur 4 jours');
     // Keep the same DOM identifiers used by shared charts; hide the optional map.
     html = html.replace('id="nowcast-details"', 'id="nowcast-details" data-feature="nowcasting"');
   }
   await writeFile(path.join(target, 'index.html'), html);
   if (id !== 'tatins') {
-    const aboutFile = path.join(target, 'about.html');
-    let about = await readFile(aboutFile, 'utf8');
-    about = about.replaceAll('Météo les Tatins', profile.name)
-      .replace(/<p class="header-subtitle">[\s\S]*?<\/p>/, '<p class="header-subtitle">Prévisions météo Météo-France à l’échelle kilométrique</p>')
-      .replace(/<script src="analytics.js\?v=4"><\/script>/, '')
-      .replace(/<nav class="header-info-links"[\s\S]*?<\/nav>/, '<nav class="header-info-links" aria-label="Pages d’information"><a href="about.html">About</a></nav>');
-    await writeFile(aboutFile, about);
+    for (const filename of ['about.html', 'architecture.svg', 'echelle-kilometrique.css', 'echelle-kilometrique.js']) {
+      await rm(path.join(target, filename), { force: true });
+    }
   }
   // These files otherwise retain the canonical Tatins URLs from the shared
   // Pages build. The new site's public address is not configured yet.
@@ -99,7 +97,7 @@ export async function prepareSite({ id, output, entry = {}, dataMode, releaseNum
   const styleUrl = html.match(/href="(style\.css\?v=\d+)"/)?.[1];
   const appUrl = html.match(/src="(app\.js\?v=\d+)"/)?.[1];
   if (!styleUrl || !appUrl) throw new Error('Les ressources de la présentation GitHub Pages sont introuvables.');
-  const shell = ['./', 'index.html', `runtime-config.js?v=${releaseNumber}`, appUrl, styleUrl, 'forecast-core.js', 'nowcast/engine.js', 'nowcast/map.js', 'manifest.webmanifest'];
+  const shell = ['./', 'index.html', `runtime-config.js?v=${releaseNumber}`, appUrl, styleUrl, `forecast-core.js?v=${releaseNumber}`, 'nowcast/engine.js', 'nowcast/map.js', 'manifest.webmanifest'];
   const worker = `const prefix = ${JSON.stringify(prefix)};
 const cacheName = prefix + ${JSON.stringify(releaseNumber)};
 const shell = ${JSON.stringify(shell)}.map(p => new URL(p, self.registration.scope).href);

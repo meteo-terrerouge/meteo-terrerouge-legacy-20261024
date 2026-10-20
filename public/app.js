@@ -16,7 +16,7 @@ const apiUrl = path => {
 };
 let basicForecastTools = null;
 let basicForecast = null;
-const basicForecastReady = siteFeatures.nowcasting ? null : import(new URL("forecast-core.js", document.currentScript?.src || document.baseURI).href).then(module => { basicForecastTools = module; });
+const basicForecastReady = siteFeatures.nowcasting ? null : import(new URL("forecast-core.js?v=" + encodeURIComponent(runtimeConfig.releaseNumber || "1"), document.currentScript?.src || document.baseURI).href).then(module => { basicForecastTools = module; });
 const appNow = () => Number(window.METEO_REPLAY?.currentTime?.()) || Date.now();
 const replayEngineUrl = new URL("nowcast/engine.js", document.currentScript?.src || document.baseURI);
 const point = { lat: siteProfile.latitude, lon: siteProfile.longitude };
@@ -2417,9 +2417,12 @@ function renderTestingDailyForecast() {
     const hasMeteoFranceStorm = meteoFranceStorm && typeof meteoFranceStorm === "object"
       ? Boolean(meteoFranceStorm.active)
       : Boolean(meteoFranceStorm);
-    if (!forecastPeriodAvailable(period, meteoFranceRain, meteoFranceWind, meteoFranceStorm)) return "";
     const slotEndTime = forecastLocalDateTime(slotDateKey(dateKey, slot), slot.endHour).getTime();
     const pastClass = Number.isFinite(slotEndTime) && slotEndTime <= appNow() ? " daily-period-past" : "";
+    if (!forecastPeriodAvailable(period, meteoFranceRain, meteoFranceWind, meteoFranceStorm)) {
+      if (!pastClass) return "";
+      return '<details class="daily-period-card daily-period-past" data-period-key="' + escapeText(periodKey) + '"><summary><span class="daily-period-title"><strong>' + escapeText(label) + '</strong></span><span class="daily-period-icon" aria-label="Données indisponibles">—</span><span class="daily-period-values">—</span><span class="daily-period-chevron" aria-hidden="true">⌄</span></summary><div class="daily-period-details">Prévisions de cette période non acquises.</div></details>';
+    }
     const openMeteoRain = hasOpenMeteoPeriod ? Math.max(0, Number(period.precipitationSum) || 0) : null;
     const meteoFranceRainAmount = meteoFranceRain?.amount != null && Number.isFinite(Number(meteoFranceRain.amount)) ? Math.max(0, Number(meteoFranceRain.amount)) : null;
     const rain = weekWeightedValue(openMeteoRain, meteoFranceRainAmount);
@@ -5243,6 +5246,7 @@ function renderNewsBanner(news) {
 }
 
 async function renderAppVersion() {
+  if (!$("app-version")) return;
   let releaseNumber = "";
   try {
     const config = await json("api/config");
