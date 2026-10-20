@@ -1,7 +1,6 @@
 name: Préparer les sites météo
 
-# First stage: manual collection and downloadable builds only. No deployment,
-# push or recurring run is enabled by adding this file.
+# Manual collection. Publication requires an explicit input on the Terre Rouge repository.
 on:
   workflow_dispatch:
     inputs:
@@ -15,12 +14,17 @@ on:
         type: choice
         options: [all, piaf, forecast]
         default: all
+      publish:
+        description: Publier Terre Rouge sur Pages après vérification des données
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
   prepare:
+    if: ${{ !inputs.publish || (github.repository == 'meteo-terrerouge/meteo-terrerouge.github.io' && inputs.site == 'terre-rouge') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
@@ -61,6 +65,16 @@ jobs:
         env:
           SITE_ID: ${{ matrix.site }}
         run: node scripts/prepare-site.mjs --site="$SITE_ID" --state=".cache/weather-state/$SITE_ID.json"
+      - name: Vérifier les données avant publication
+        if: inputs.publish
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFile } from 'node:fs/promises';
+          const entry = JSON.parse(await readFile('.cache/weather-state/terre-rouge.json', 'utf8'));
+          if (entry.siteId !== 'terre-rouge' || !entry.arome?.hours?.length || !entry.arpegeWeek?.days?.length || !entry.piaf?.values?.length) {
+            throw new Error('Les données principales sont incomplètes : publication annulée.');
+          }
+          NODE
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -69,6 +83,32 @@ jobs:
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 3
+      - uses: actions/upload-pages-artifact@v5
+        if: inputs.publish
+        with:
+          path: .cache/sites/terre-rouge/
       - name: Signaler une collecte partielle
         if: steps.collection.outcome == 'failure'
-        run: exit 1
+        env:
+          PUBLISH: ${{ inputs.publish }}
+        run: |
+          echo "::warning::Collecte partielle : consulter le bilan Météo-France."
+          if [ "$PUBLISH" != "true" ]; then exit 1; fi
+
+  deploy:
+    if: ${{ inputs.publish && github.repository == 'meteo-terrerouge/meteo-terrerouge.github.io' && inputs.site == 'terre-rouge' }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages-terre-rouge
+      cancel-in-progress: false
+    steps:
+      - uses: actions/configure-pages@v6
+      - uses: actions/deploy-pages@v5
+        id: deployment
