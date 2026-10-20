@@ -50,8 +50,11 @@ n'est pas appliqué à Terre Rouge.
 ## GitHub Actions : première étape manuelle
 
 Le workflow `prepare-weather-sites.yml` est uniquement déclenchable à la main.
-Il prépare un ou deux sites et fournit des archives téléchargeables. Il ne
-déploie rien et n'écrit pas dans un dépôt distant. Les secrets à configurer
+Il prépare un ou deux sites et fournit des archives téléchargeables. Par défaut,
+il ne déploie rien. L'option explicite `publish=true`, réservée au dépôt
+`meteo-terrerouge/meteo-terrerouge.github.io` et au profil `terre-rouge`, publie
+la sortie générée sur Pages après vérification des données principales.
+Les secrets à configurer
 dans le dépôt choisi sont `METEO_FRANCE_API_KEY_TATINS` et
 `METEO_FRANCE_API_KEY_TERRE_ROUGE` : aucun repli d'un jeton sur l'autre lieu.
 
@@ -77,7 +80,8 @@ pas activé dans cette première étape : il devra préserver les instantanés
 cohérents du nowcasting et la cadence PIAF des Tatins. Actions ne garantit pas
 un lancement ponctuel et sa planification minimale est de 5 min.
 
-Le déploiement reste effectué par l'utilisateur.
+La publication de Terre Rouge est déclenchable manuellement ; aucune cadence
+automatique n'est activée. Les Tatins ne sont pas déployés par ce workflow.
 
 ## Préparation du dépôt Terre Rouge
 
