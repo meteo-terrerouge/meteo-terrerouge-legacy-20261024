@@ -1312,6 +1312,8 @@ body.forecast-rows-layout { min-width: 0; }
 .piaf-intensity-chart text { fill: #67818e; font: 10px system-ui; }
 .piaf-intensity-area { fill: #a9d4e8; opacity: .45; }
 .piaf-intensity-line { fill: none; stroke: #258bc0; stroke-width: 2; stroke-linejoin: round; }
+.piaf-trace-mark { fill: #258bc0; opacity: .65; }
+.piaf-intensity-chart .piaf-trace-label { fill: #258bc0; font-weight: 700; }
 .piaf-temperature-line { fill: none; stroke: #ef5b2a; stroke-width: 2.5; stroke-linecap: round; }
 .piaf-temperature-point circle { fill: #ef5b2a; stroke: #fff; stroke-width: 1; }
 .piaf-temperature-point text { fill: #d65a2a; font: 750 11px system-ui; }
