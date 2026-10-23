@@ -27,8 +27,13 @@ async function publishedSiteAssets(version) {
   return publishedBuilds.get(version);
 }
 
-export async function prepareSite({ id, output, entry = {}, dataMode, releaseNumber, canonicalUrl = '' }) {
+export async function prepareSite({ id, output, entry = {}, dataMode, releaseNumber, canonicalUrl = '', presentation = '' }) {
   const profile = siteProfile(id);
+  if (presentation) {
+    if (id !== 'terre-rouge' || presentation !== 'tatins-rows') throw new Error('Présentation expérimentale inconnue.');
+    profile.dailyPresentation = presentation;
+    profile.headerAltitude = 1155;
+  }
   if (!releaseNumber) {
     const changelog = await readFile(path.join(root, 'CHANGELOG.md'), 'utf8');
     releaseNumber = [...changelog.matchAll(/— v(\d+\.\d{3}) —/g)].at(-1)?.[1];
@@ -73,6 +78,14 @@ export async function prepareSite({ id, output, entry = {}, dataMode, releaseNum
       .replaceAll('Prévisions quotidiennes sur 7 jours', 'Prévisions quotidiennes sur 16 jours');
     // Keep the same DOM identifiers used by shared charts; hide the optional map.
     html = html.replace('id="nowcast-details"', 'id="nowcast-details" data-feature="nowcasting"');
+  }
+  if (profile.dailyPresentation === 'tatins-rows') {
+    const coordinate = value => Math.abs(value).toLocaleString('fr-FR', { minimumFractionDigits: 6, maximumFractionDigits: 6 });
+    const location = `${coordinate(profile.latitude)}° N · ${coordinate(profile.longitude)}° E · ${profile.headerAltitude.toLocaleString('fr-FR')} m`;
+    html = html.replace('<header>', '<header class="terre-rouge-site-header">')
+      .replace('<h1>Météo Terre Rouge</h1>', '<h1>Météo Boulc<span class="site-title-separator" aria-hidden="true">&gt;</span><wbr><span class="site-title-place">Terre Rouge</span></h1>')
+      .replace('<title>Météo Terre Rouge</title>', '<title>Météo Boulc&gt;Terre Rouge</title>')
+      .replace(/<p class="header-subtitle">.*?<\/p>/, `<p class="site-location">${location}</p><div id="site-daylight" class="site-daylight"></div>`);
   }
   if (profile.forecastLayout === 'daily-rows') {
     html = html.replace('<body>', '<body class="forecast-rows-layout">')
@@ -130,5 +143,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.ar
   const entry = arg('state') ? JSON.parse(await readFile(arg('state'), 'utf8')) : {};
   const changelog = await readFile(path.join(root, 'CHANGELOG.md'), 'utf8');
   const releaseNumber = [...changelog.matchAll(/— v(\d+\.\d{3}) —/g)].at(-1)?.[1];
-  console.log(await prepareSite({ id: arg('site', 'terre-rouge'), output: arg('output'), entry, dataMode: arg('data-mode'), canonicalUrl: arg('url', ''), releaseNumber }));
+  console.log(await prepareSite({ id: arg('site', 'terre-rouge'), output: arg('output'), entry, dataMode: arg('data-mode'), canonicalUrl: arg('url', ''), releaseNumber, presentation: arg('presentation', '') }));
 }

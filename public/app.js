@@ -9,6 +9,7 @@ const dailyRowsLayout = siteProfile.forecastLayout === "daily-rows";
 let dailyRowsTools = null;
 const dailyChartStates = new Map();
 let dailyChartsResizeObserver = null;
+let threeHourDiagramOpen = true;
 const dailyRowsReady = dailyRowsLayout ? import(new URL("daily-rows.js?v=" + encodeURIComponent(runtimeConfig.releaseNumber || "1"), document.currentScript?.src || document.baseURI).href)
   .then(module => { dailyRowsTools = module; renderWeekForecast(); }) : null;
 const apiUrl = path => {
@@ -2173,6 +2174,22 @@ function forecastPeriodAvailable(period, meteoFranceRain, meteoFranceWind, meteo
   return Boolean(period || meteoFranceRain || meteoFranceWind || activeStorm);
 }
 
+const periodMetricIcons = {
+  cloud: '<path d="M5.5 18a4.5 4.5 0 0 1-.6-9A6.2 6.2 0 0 1 16.7 8a5 5 0 1 1 .8 10H5.5Z"/>',
+  rain: '<path d="M12 2.8C9.5 6.4 6.8 9.7 6.8 13.2a5.2 5.2 0 0 0 10.4 0C17.2 9.7 14.5 6.4 12 2.8Z"/>',
+  showers: '<path d="M5 10.5a5 5 0 0 1 9.4-2.3A3.8 3.8 0 1 1 17 15H6a3.2 3.2 0 0 1-1-6.2"/><path d="m8 17-1.2 3M12 17l-1.2 3M16 17l-1.2 3"/>',
+  wind: '<path d="M3 7.5h10.5c3.7 0 3.7-4.5.7-4.5-1.3 0-2.2.7-2.6 1.7M3 12h15c3.8 0 3.8 5 .5 5-1.5 0-2.4-.8-2.8-1.8M3 16.5h7"/>',
+  gust: '<path d="M3 7h12c4 0 4-5 .7-5-1.5 0-2.5.8-2.9 2M3 12h17M3 17h10c4 0 4 5 .7 5-1.5 0-2.5-.8-2.9-2"/>',
+  storm: '<path d="M13.5 2 6.8 13h5l-1.2 9L18 10.5h-5L13.5 2Z"/>'
+};
+const periodMetricPictogram = (kind, step, label, sources) => {
+  const level = Math.max(0, Math.min(5, Math.round(Number(step) || 0)));
+  const scale = Array.from({ length: 5 }, (_, index) => '<i class="' + (index < level ? "solid" : "") + '"></i>').join("");
+  const sourceTooltip = sources.filter(Boolean).join("\n");
+  const accessibleLabel = label + " · " + level + " sur 5 · " + sourceTooltip.replace(/\n/g, ", ");
+  return '<span class="week-metric-pictogram ' + kind + ' chart-point" tabindex="0" role="img" aria-label="' + escapeText(accessibleLabel) + '" data-tooltip="' + escapeText(sourceTooltip) + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + periodMetricIcons[kind] + '</svg><span class="week-metric-scale" aria-hidden="true">' + scale + '</span></span>';
+};
+
 function renderTestingDailyForecast() {
   const target = $("week-forecast");
   if (!target) return;
@@ -2205,21 +2222,6 @@ function renderTestingDailyForecast() {
   const hazardPictogram = (kind, detail) => kind === "storm"
     ? stormSignalPictogram(detail, "daily-hazard-symbol storm")
     : '<span class="daily-hazard-symbol wind chart-point" tabindex="0" role="img" aria-label="Vent fort" data-tooltip="' + escapeText(detail) + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h11c3 0 3-4 0-4-1.2 0-2 .6-2.4 1.4M3 12h16c3.2 0 3.2 4.5 0 4.5-1.3 0-2.2-.7-2.5-1.6M3 16h8"/></svg></span>';
-  const periodMetricIcons = {
-    cloud: '<path d="M5.5 18a4.5 4.5 0 0 1-.6-9A6.2 6.2 0 0 1 16.7 8a5 5 0 1 1 .8 10H5.5Z"/>',
-    rain: '<path d="M12 2.8C9.5 6.4 6.8 9.7 6.8 13.2a5.2 5.2 0 0 0 10.4 0C17.2 9.7 14.5 6.4 12 2.8Z"/>',
-    showers: '<path d="M5 10.5a5 5 0 0 1 9.4-2.3A3.8 3.8 0 1 1 17 15H6a3.2 3.2 0 0 1-1-6.2"/><path d="m8 17-1.2 3M12 17l-1.2 3M16 17l-1.2 3"/>',
-    wind: '<path d="M3 7.5h10.5c3.7 0 3.7-4.5.7-4.5-1.3 0-2.2.7-2.6 1.7M3 12h15c3.8 0 3.8 5 .5 5-1.5 0-2.4-.8-2.8-1.8M3 16.5h7"/>',
-    gust: '<path d="M3 7h12c4 0 4-5 .7-5-1.5 0-2.5.8-2.9 2M3 12h17M3 17h10c4 0 4 5 .7 5-1.5 0-2.5-.8-2.9-2"/>',
-    storm: '<path d="M13.5 2 6.8 13h5l-1.2 9L18 10.5h-5L13.5 2Z"/>'
-  };
-  const periodMetricPictogram = (kind, step, label, sources) => {
-    const level = Math.max(0, Math.min(5, Math.round(Number(step) || 0)));
-    const scale = Array.from({ length: 5 }, (_, index) => '<i class="' + (index < level ? "solid" : "") + '"></i>').join("");
-    const sourceTooltip = sources.filter(Boolean).join("\n");
-    const accessibleLabel = label + " · " + level + " sur 5 · " + sourceTooltip.replace(/\n/g, ", ");
-    return '<span class="week-metric-pictogram ' + kind + ' chart-point" tabindex="0" role="img" aria-label="' + escapeText(accessibleLabel) + '" data-tooltip="' + escapeText(sourceTooltip) + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + periodMetricIcons[kind] + '</svg><span class="week-metric-scale" aria-hidden="true">' + scale + '</span></span>';
-  };
   const periodCloudStep = value => cloudCoverBand(value);
   const periodWindStep = meanWindIntensityLevel;
   const periodGustStep = gustIntensityLevel;
@@ -2657,6 +2659,85 @@ function renderTestingDailyForecast() {
   renderWeekApiLinks();
 }
 
+function dailyDataUpdateMarkup(day) {
+  const tone = dailyRowsTools.dailyDataUpdateStatus(day, appNow());
+  const labels = { green: "Données récentes", orange: "Actualisation ancienne", red: "Données anciennes ou indisponibles" };
+  const updates = (day.sourceUpdates || []).map(source => {
+    const stamp = typeof source.fetchedAt === "string" ? Date.parse(source.fetchedAt) : source.fetchedAt;
+    return source.name + " : " + (stamp > 0 && Number.isFinite(stamp) ? dateTimeFormat.format(new Date(stamp)) : "date inconnue");
+  });
+  const title = labels[tone] + "\n" + updates.join("\n");
+  return '<span class="daily-confidence-indicator daily-data-refresh ' + tone + '" role="img" aria-label="' + escapeText(title) + '" title="' + escapeText(title) + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 11.6-1L20 9M4 15l2.4 3A7 7 0 0 0 18 17"/></svg></span>';
+}
+
+function threeHourHazardsMarkup(period) {
+  const parts = [];
+  if (meanWindIntensityLevel(period.windSpeed) >= 3) {
+    const label = ["", "", "", "modéré", "soutenu", "fort"][meanWindIntensityLevel(period.windSpeed)];
+    parts.push("Vent moyen " + label + " · " + Math.round(period.windSpeed) + " km/h");
+  }
+  if (gustIntensityLevel(period.windGust) >= 2) parts.push(shortTermGustLabel(gustIntensityLevel(period.windGust)) + " · " + Math.round(period.windGust) + " km/h");
+  if (period.storm) parts.push("Orage possible");
+  return parts.length ? '<span class="piaf-summary-hazards">' + parts.map(part => '<b>' + escapeText(part) + '</b>').join('<span aria-hidden="true"> · </span>') + '</span>' : "";
+}
+
+function dailyRowPeriodsMarkup(day, state) {
+  const format = (value, digits = 0) => value == null ? "—" : Number(value).toLocaleString("fr-FR", { maximumFractionDigits: digits });
+  const row = (pictogram, amount, description) => '<div class="week-metric-row"><dt>' + pictogram + '</dt><dd>'
+    + (amount ? '<span class="week-metric-number">(' + escapeText(amount) + ')</span>' : '') + '</dd>'
+    + (description ? '<p class="week-metric-description">' + escapeText(description) + '</p>' : '') + '</div>';
+  return forecastDailySlots.map(slot => {
+    const { start, end } = forecastSlotTimeRange(day.date, slot);
+    const period = dailyRowsTools.dailyPeriodSummary(day, start, end, appNow());
+    const source = key => key === "rain" ? period.rainSources.join(" · ") : period.sources[key];
+    const metric = (kind, value, step, label, owner) => value == null ? '<span class="day-detail-unavailable">—</span>'
+      : periodMetricPictogram(kind, step, label, [owner + " : " + label]);
+    const rain = period.rain;
+    const probabilityValues = period.rainSources.length === 1 && period.rainSources[0] === "Open-Meteo"
+      ? (latestForecastData?.openMeteo?.hours || []).filter(hour => Date.parse(hour.time) > period.begin && Date.parse(hour.time) <= end)
+        .map(hour => hour.probability).filter(value => value != null && Number.isFinite(value)) : [];
+    const probability = rainProbabilitySummary(probabilityValues);
+    const snow = period.snowfall > 0;
+    const snowAmount = snow ? (Math.round(period.snowfall) || "< 1") + " cm" : "";
+    const rainAmount = rain == null ? "—" : snow ? (period.liquidRain > 0 ? format(period.liquidRain, 2) + " mm · " : "") + snowAmount
+      : (rain > 0 && rain < .01 ? "< 0,01" : rain > 0 && rain < .1 ? "< 0,1" : format(rain, 2)) + " mm";
+    const amount = rainAmount + (period.estimated ? "*" : "") + (rain != null && !period.completeRain ? " (partiel)" : "");
+    const noun = slot.key === "morning" ? "matinée" : slot.key === "afternoon" ? "après-midi" : slot.key === "evening" ? "soirée" : "nuit";
+    const deNoun = slot.key === "afternoon" ? "d’après-midi" : "de " + noun;
+    const timing = period.rainTiming === "start" ? "en début " + deNoun : period.rainTiming === "end" ? "en fin " + deNoun
+      : period.rainTiming === "middle" ? "au milieu de " + (slot.key === "afternoon" ? "l’après-midi" : "la " + noun) : "";
+    let rainDescription = rain == null ? "Précipitations indisponibles." : rain === 0 && period.completeRain ? "Pas de pluie." : "";
+    if (rain > 0) {
+      rainDescription = snow ? (period.liquidRain > 0 ? "Pluie et neige" : "Neige") + (timing ? " " + timing : "") + "."
+        : rain < .01 ? "Traces de précipitations." : conciseRainSummary(rain, probabilityValues, [], false, period.storm === true, probability);
+      if (!snow && rain >= .01 && timing) rainDescription = rainDescription.replace(/\.$/, " " + timing + ".");
+    }
+    const cloudDescription = period.cloudCover == null ? "Nébulosité indisponible." : conciseSkySummary(period.cloudCover);
+    const windDescription = period.windSpeed == null && period.windGust == null ? "Vent indisponible."
+      : conciseWindSummary(period.windSpeed == null ? [] : [period.windSpeed], period.windGust == null ? [] : [period.windGust], [], [], period.windDirection == null ? [] : [period.windDirection]);
+    const direction = period.windDirection == null ? "" : '<span class="daily-period-wind-arrow" style="transform:rotate(' + period.windDirection + 'deg)" aria-hidden="true">↑</span>';
+    const cloudDetail = row(metric("cloud", period.cloudCover, cloudCoverBand(period.cloudCover), format(period.cloudCover) + " %", source("cloudCover")), format(period.cloudCover) + " %", cloudDescription);
+    const rainOwner = source("rain") + (period.estimated ? " · part estimée au prorata des intervalles source" : "");
+    const rainDetail = row(metric("rain", rain, rain >= .01 ? rainPictogramStep(rain) : 0, amount, rainOwner), amount, rainDescription);
+    const windDetail = '<div class="week-wind-group"><div class="week-grouped-metric-line"><dt>'
+      + metric("wind", period.windSpeed, meanWindIntensityLevel(period.windSpeed), format(period.windSpeed) + " km/h", source("windSpeed"))
+      + '</dt><dd><span class="week-metric-number">(' + direction + format(period.windSpeed) + ' km/h)</span></dd></div><div class="week-grouped-metric-line"><dt>'
+      + metric("gust", period.windGust, gustIntensityLevel(period.windGust), format(period.windGust) + " km/h", source("windGust"))
+      + '</dt><dd><span class="week-metric-number">(' + format(period.windGust) + ' km/h)</span></dd></div><p class="week-metric-description">' + escapeText(windDescription) + '</p></div>';
+    const stormDescription = period.storm === true ? "Orage possible." : period.storm === false ? "Pas d’orage." : "Prévision d’orage indisponible.";
+    const stormDetail = row(metric("storm", period.storm, period.storm ? 3 : 0, stormDescription, source("storm")), "", stormDescription);
+    const details = '<dl>' + cloudDetail + rainDetail + windDetail + stormDetail + '</dl>';
+    const time = new Date((start + end) / 2).toISOString();
+    const icon = dailyRowsTools.weatherPictogram({ ...period, time, rain: rain == null ? null : rain >= .01 ? rain / ((end - period.begin) / 3600000) : 0,
+      stormSignal: period.storm === true }, displayIcon);
+    const temperatures = '<span class="daily-period-temperatures"><span><small>Max.</small><strong>' + format(period.temperatureMax) + '°</strong></span><span><small>Min.</small><b>' + format(period.temperatureMin) + '°</b></span></span>';
+    const rainVolume = rain >= .01 ? '<span class="daily-period-rain-volume"><svg viewBox="0 0 24 24" aria-hidden="true">' + periodMetricIcons.rain + '</svg><strong>' + escapeText(rainAmount) + '</strong></span>' : "";
+    const title = slot.key === "night" ? "Nuit du " + nightPeriodDateFormat.format(new Date(day.date + "T12:00:00")) + " au " + nightPeriodDateFormat.format(new Date(shiftForecastDateKey(day.date, 1) + "T12:00:00")) + " matin" : "";
+    const summary = '<span class="daily-period-title"' + (title ? ' title="' + escapeText(title) + '"' : '') + '><strong>' + slot.label + '</strong></span><span class="daily-period-icon weather-icon">' + (period.available ? icon : "—") + '</span><span class="daily-period-values">' + (period.available ? temperatures + rainVolume : "—") + '</span><span class="daily-period-chevron" aria-hidden="true">⌄</span>';
+    return '<details class="daily-period-card' + (end <= appNow() ? ' daily-period-past' : '') + '" data-period-key="' + day.date + ':' + slot.key + '" data-slot-key="' + slot.key + '"' + (state.openPeriod === slot.key ? ' open' : '') + '><summary>' + summary + '</summary><div class="daily-period-details">' + details + '</div></details>';
+  }).join("");
+}
+
 function alignDailyLegendSources(root) {
   root.querySelectorAll('.day-chart-key').forEach(key => {
     key.classList.remove('day-source-wrapped');
@@ -2669,8 +2750,24 @@ function alignDailyLegendSources(root) {
   });
 }
 
+function renderTerreRougeHeader() {
+  const target = $("site-daylight");
+  if (!target) return;
+  const now = new Date(appNow());
+  const timezone = siteProfile.timezone || "Europe/Paris";
+  const time = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: timezone });
+  const key = todayDateKey();
+  const sun = sunTimes(new Date(key + "T12:00:00Z"));
+  const moon = moonPhaseMeteoconName(now);
+  const moonLabels = { "moon-new": "Nouvelle lune", "moon-waxing-crescent": "Premier croissant", "moon-first-quarter": "Premier quartier", "moon-waxing-gibbous": "Lune gibbeuse croissante", "moon-full": "Pleine lune", "moon-waning-gibbous": "Lune gibbeuse décroissante", "moon-last-quarter": "Dernier quartier", "moon-waning-crescent": "Dernier croissant" };
+  const solarIcon = setting => '<svg class="site-sun-icon' + (setting ? ' site-sunset-icon' : '') + '" viewBox="0 6 32 26" aria-hidden="true"><path class="site-sun-disk" d="M8 22a8 8 0 0 1 16 0Z"/><path class="site-sun-rays" d="M4 22h24M7 27h18M3 17h3M26 17h3M6 11l2.5 2.5M23.5 13.5 26 11"/></svg>';
+  const solarTime = (label, instant, setting) => '<span class="site-sun-time" role="img" aria-label="' + label + ' à ' + time.format(instant) + '" title="' + label + '">' + solarIcon(setting) + '<span class="site-sun-label">' + (setting ? 'Couché' : 'Levé') + '</span><time datetime="' + instant.toISOString() + '">' + time.format(instant) + '</time></span>';
+  target.innerHTML = solarTime("Lever du soleil", sun.sunrise, false) + solarTime("Coucher du soleil", sun.sunset, true) + '<span class="site-moon">' + moonPhaseIcon(now) + '<span>' + moonLabels[moon] + '</span></span>';
+}
+
 function renderWeekForecast() {
   if (dailyRowsLayout) {
+    renderTerreRougeHeader();
     if (!dailyRowsTools) return;
     const target = $("week-forecast");
     dailyChartsResizeObserver?.disconnect();
@@ -2684,6 +2781,7 @@ function renderWeekForecast() {
     };
     const days = dailyRowsTools.buildDailyRows({ dashboard: latestForecastData || {}, week: latestMeteoFranceWeek,
       now: appNow(), timezone: siteProfile.timezone, count: siteProfile.forecastDays || 16, sunTimesForDate: sunTimes });
+    const collapsible = siteProfile.dailyPresentation === "tatins-rows";
     const chartOptions = { timezone: siteProfile.timezone, iconMarkup: displayIcon, rainScale: dailyRowsTools.dailyRainScale(days),
       backgroundForTime: time => daylightColor(time, new Date(time)) };
     const piafTarget = $("piaf-three-hour-chart");
@@ -2691,15 +2789,31 @@ function renderWeekForecast() {
       piafTarget._redrawDailyChart = () => {
         const width = Math.max(200, piafTarget.clientWidth - 2);
         piafTarget._dailyChartWidth = Math.round(piafTarget.clientWidth);
-        piafTarget.innerHTML = dailyRowsTools.piafChartMarkup(currentNowcast(), { ...chartOptions, now: appNow(), width,
-          dashboard: latestForecastData || {}, week: latestMeteoFranceWeek });
+        piafTarget.innerHTML = dailyRowsTools.piafChartMarkup(currentNowcast(), { ...chartOptions, compact: collapsible, now: appNow(), width,
+          dashboard: latestForecastData || {}, week: latestMeteoFranceWeek, updateMarkup: dailyDataUpdateMarkup,
+          chartIconMarkup: graphIconMarkup("daily-day-open-icon"), hazardsMarkup: threeHourHazardsMarkup });
+        const controls = piafTarget.querySelector(".three-hour-view-controls");
+        if (controls) {
+          const heading = document.querySelector(".three-hour-card > .forecast-day-header");
+          heading.querySelector(".three-hour-view-controls")?.remove();
+          heading.append(controls);
+          const diagram = piafTarget.querySelector(".piaf-diagram");
+          const button = controls.querySelector("button");
+          const sync = () => { diagram.hidden = !threeHourDiagramOpen; button.setAttribute("aria-expanded", String(threeHourDiagramOpen)); };
+          button.onclick = () => { threeHourDiagramOpen = !threeHourDiagramOpen; sync(); };
+          sync();
+        }
         alignDailyLegendSources(piafTarget);
         bindChartTooltips(piafTarget);
       };
       piafTarget._redrawDailyChart();
       dailyChartsResizeObserver.observe(piafTarget);
     }
+    if (collapsible) target.querySelectorAll(".forecast-day-periods").forEach(article => {
+      stateForDate(article.dataset.dayDate).openPeriod = article.querySelector(".daily-period-card[open]")?.dataset.slotKey || null;
+    });
     target.innerHTML = dailyRowsTools.dailyRowsMarkup(days, { ...chartOptions, now: appNow(), stateForDate,
+      collapsible, periodsMarkup: dailyRowPeriodsMarkup, updateMarkup: dailyDataUpdateMarkup, chartIconMarkup: graphIconMarkup("daily-day-open-icon"),
       controlsMarkup: opacities => forecastMetricControlsMarkup(opacities) });
     target.querySelectorAll("[data-day-date]").forEach(article => {
       const state = stateForDate(article.dataset.dayDate);
@@ -2717,6 +2831,11 @@ function renderWeekForecast() {
         alignDailyLegendSources(article);
       };
       const redraw = () => {
+        if (collapsible && !state.chartOpen) return;
+        if (collapsible) {
+          const columns = getComputedStyle(target.querySelector(".daily-cards-grid")).gridTemplateColumns.split(" ").length;
+          article.querySelector(".day-chart-panel").style.order = Math.floor(days.indexOf(day) / columns) * columns * 2 - 1;
+        }
         const viewportWidth = Math.max(160, scroll.clientWidth);
         const { width, height, canExpand } = dailyRowsTools.dailyChartSize(viewportWidth, state, day);
         chartHeight = height;
@@ -2731,6 +2850,44 @@ function renderWeekForecast() {
         bindChartTooltips(article);
       };
       scroll._redrawDailyChart = redraw;
+      if (collapsible) {
+        const showPeriod = period => {
+          if (!article.isConnected) return;
+          const opened = period?.open ? period : article.querySelector(".daily-period-card[open]");
+          state.openPeriod = opened?.dataset.slotKey || null;
+          if (period?.open) target.querySelectorAll(".daily-period-card[open]").forEach(other => {
+            if (other !== period) {
+              other.open = false;
+              if (other.closest("[data-day-date]") !== article) stateForDate(other.closest("[data-day-date]").dataset.dayDate).openPeriod = null;
+            }
+          });
+        };
+        article.querySelectorAll(".daily-period-card").forEach(period => period.addEventListener("toggle", () => showPeriod(period)));
+        const chartButton = article.querySelector(".day-chart-toggle");
+        const chartPanel = article.querySelector(".day-chart-panel");
+        const toggleChart = (collapsePeriod = false) => {
+          const pagePosition = { left: window.scrollX, top: window.scrollY, behavior: "instant" };
+          if (collapsePeriod) {
+            state.openPeriod = null;
+            article.querySelectorAll(".daily-period-card[open]").forEach(period => { period.open = false; });
+          }
+          state.chartOpen = !state.chartOpen;
+          if (state.chartOpen) target.querySelectorAll("[data-day-date]").forEach(other => {
+            if (other === article) return;
+            stateForDate(other.dataset.dayDate).chartOpen = false;
+            other.querySelector(".day-chart-panel").hidden = true;
+            other.querySelector(".day-chart-toggle").setAttribute("aria-expanded", "false");
+          });
+          chartPanel.hidden = !state.chartOpen;
+          chartButton.setAttribute("aria-expanded", String(state.chartOpen));
+          if (state.chartOpen) redraw();
+          else chartButton.focus({ preventScroll: true });
+          window.scrollTo(pagePosition);
+          requestAnimationFrame(() => window.scrollTo(pagePosition));
+        };
+        chartButton.onclick = () => toggleChart(true);
+        article.querySelector(".day-chart-close").onclick = () => toggleChart();
+      }
       bindMetricControlButtons(article, state.opacities, state.offsets, apply);
       redraw();
       dailyChartsResizeObserver.observe(scroll);
@@ -5470,3 +5627,7 @@ if (window.METEO_REPLAY?.start) import(replayEngineUrl.href).then(({ createNowca
   });
 }).catch(error => { console.error("Moteur du replay indisponible", error); });
 else refresh();
+if ($("site-daylight")) {
+  renderTerreRougeHeader();
+  window.setInterval(renderTerreRougeHeader, 60000);
+}

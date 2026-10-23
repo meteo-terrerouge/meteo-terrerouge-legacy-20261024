@@ -1,3 +1,297 @@
+# Publication autorisée — 23 octobre 2026, v3.293
+
+L’utilisateur demande explicitement « on vire la Saint du jour et on publie »,
+puis confirme que les données en ligne doivent être actualisées régulièrement.
+Cette demande autorise la publication de la présentation validée sur Terre Rouge.
+
+- Saint du jour retiré : code de récupération, lien, styles et autorisation CSP
+  Nominis supprimés. Aucun appel externe au calendrier.
+- Présentation des cartes activée dans le profil Terre Rouge par défaut ; les
+  workflows de génération n’ont plus besoin d’une option expérimentale.
+- En-tête Boulc>Terre Rouge, altitude et coordonnées cibles, soleil sans flèches
+  avec Levé/Couché, phase lunaire ; frise 3 h et seize jours avec Tendance conservés.
+- Sources et collecte inchangées : PIAF planifié toutes les 5 min, contrôle des
+  autres prévisions chaque heure avec caches et cycles natifs, publication
+  automatique sérialisée. Les déclenchements réels peuvent être retardés par GitHub.
+  Les navigateurs relisent les données publiées chaque minute.
+- Dépôt vérifié : meteo-terrerouge/meteo-terrerouge.github.io, main.
+  Site : https://meteo-terrerouge.github.io/. Sauvegarde v3.280 et son tag conservés.
+- Contrôles avant publication : 393 tests passent, check et check:pages passent ;
+  aperçu généré avec le profil de production et des JSON publics récents : seize
+  cartes, nouveau titre, aucune mention ni connexion Nominis.
+
+# Pictogrammes solaires — 23 octobre 2026, v3.292 non publiée
+
+- Les libellés visibles Lever/Coucher du soleil sont remplacés par deux SVG
+  assortis : soleils sur un horizon, sans flèches (correction utilisateur),
+  lever jaune et coucher orangé. Heures conservées à côté.
+- Mentions « Levé » et « Couché » à côté des pictogrammes et des horaires ;
+  libellés complets au survol et noms accessibles. Phase lunaire conservée.
+- Titre agrandi : 30 à 48 px selon l’écran, sans espaces autour du chevron.
+  « Terre Rouge » reste groupé sur mobile.
+- Saint du jour récupéré par l’API officielle Nominis, avec date explicite en
+  Europe/Paris et contrôle de la date retournée. Seuls nom et lien sont utilisés ;
+  aucun HTML tiers injecté. Lien HTTPS vers Nominis pour l’attribution.
+- Une acquisition par date dans la page ; nouvel essai après 15 min si échec,
+  délai de 8 s. Pas de saint périmé après minuit. Connexion externe ajoutée à la
+  CSP uniquement pour l’aperçu ; les données météo restent locales.
+- Source et documentation : https://nominis.cef.fr/contenus/integrations.html ;
+  API https://nominis.cef.fr/json/saintdujour.php?annee=2026&mois=10&jour=23.
+- Validation : 82 tests check:sites passent ; navigateur : Saint Jean de Capistran
+  reçu de Nominis, lien HTTPS correct, titre agrandi, aucune flèche. Petit écran
+  contrôlé sans débordement. Capture : terre-rouge-pictogrammes-soleil.png.
+- Même aperçu local, aucun push ni déploiement.
+
+# Titre compact et Lune — 23 octobre 2026, v3.291 non publiée
+
+- Titre exactement « Météo Boulc>Terre Rouge », sans espaces ni marge autour
+  du chevron ; titre de l’onglet harmonisé.
+- Date retirée de la ligne lever/coucher. Horaires solaires maintenus.
+- Phase de la Lune ajoutée à côté : nom français et disque éclairé calculé par
+  le moteur lunaire déjà présent. Mise à jour chaque minute avec les heures solaires.
+  Le disque calculé est utilisé car le SVG Meteocons nommé « gibbeuse » du dépôt
+  représente en réalité un croissant et ne correspond pas à la phase affichée.
+- Validation : 82 tests check:sites passent, contrôle navigateur du titre sans
+  espaces, absence de date avant les heures et présence de la phase lunaire.
+- Même aperçu local, aucun push ni déploiement. Capture :
+  terre-rouge-titre-lune.png dans les visualisations du chat.
+
+# Nouvel en-tête et frise allégée — 23 octobre 2026, v3.290 non publiée
+
+- Titre « Météo Boulc > Terre Rouge ». Coordonnées du point demandé affichées
+  (44,632186° N · 5,631626° E), altitude 1 155 m déjà confirmée par l’utilisateur.
+  Ne pas afficher les coordonnées ni l’altitude de la maille Open-Meteo.
+- Date du jour complète, lever et coucher du soleil calculés avec le moteur
+  astronomique existant aux coordonnées Terre Rouge, affichés en Europe/Paris.
+  Mise à jour chaque minute, indépendante du chargement des données météo.
+- Ancien sous-titre descriptif remplacé par ces informations. Changement réservé
+  à l’aperçu avec --presentation=tatins-rows ; en-têtes publics non modifiés.
+- Frise 3 h : suppression du libellé « Précip. PIAF mm/h équiv. eau » et des
+  sources textuelles ; les sources restent dans l’indicateur d’actualisation.
+  Les éventuelles légendes pluie/neige restent présentes. Minimum bleu, maximum
+  rouge. Unités et nature des cumuls toujours accessibles dans les infobulles.
+- Validation : 82 tests check:sites passent, y compris coordonnées/altitude
+  cibles et conservation des rendus par défaut. Navigateur : horaires du 23/10
+  (08:03 et 18:42), date courante, couleurs distinctes et absence des deux textes
+  dans le diagramme 3 h. Vérification mobile sans débordement.
+- Même aperçu local, aucun push ni déploiement. Capture :
+  terre-rouge-entete-local.png dans les visualisations du chat.
+
+# Dates et encadré Tendance — 23 octobre 2026, v3.289 non publiée
+
+- Date à la suite du jour dans toutes les cartes, y compris Aujourd’hui et Demain.
+- « Tendance » avant les pictogrammes de courbe et d’actualisation ; fond jaune
+  et espacement de l’encadré restaurés, sans barre verticale.
+- Validation : 81 tests check:sites passent ; navigateur : date intégrée au titre
+  dès Aujourd’hui, ordre Tendance/courbe/actualisation, fond jaune et bordure nulle.
+- Même aperçu local, aucun push ni déploiement. Capture :
+  terre-rouge-dates-tendance-jaune.png dans les visualisations du chat.
+
+# Repli du créneau au clic courbe — 23 octobre 2026, v3.288 non publiée
+
+- Le pictogramme de courbe referme tout créneau déployé de ce même jour,
+  avant d’ouvrir ou fermer le graphique. L’état du créneau est également remis
+  à zéro pour les prochains rafraîchissements. Les autres jours sont inchangés.
+- Fermeture par la croix : comportement précédent conservé. Position de page
+  et placement du graphique au-dessus de la rangée conservés.
+- Validation : syntaxe vérifiée et aperçu reconstruit ; navigateur, créneau Soir
+  d’Aujourd’hui ouvert puis clic courbe : aucun créneau ouvert et courbe visible.
+- Même aperçu local, aucun push ni déploiement. Capture :
+  terre-rouge-courbe-creneau-replie.png dans les visualisations du chat.
+
+# Indicateurs et en-têtes — 23 octobre 2026, v3.287 non publiée
+
+- Les pictogrammes d’actualisation sont désormais uniquement indicatifs : aucun
+  bouton, aucun clic, aucun arrêt de tabulation. Couleur et infobulle indiquent
+  l’ancienneté des sources ; un indicateur ajouté au titre des 3 h. PIAF : vert
+  jusqu’à 10 min, orange jusqu’à 20 min, rouge ensuite ; autres sources inchangées.
+- Boutons de courbe immédiatement à côté des indicateurs. Sur les 3 h, le bouton
+  affiche/masque le diagramme en conservant le résumé min/max et précipitations.
+- Résumé 3 h enrichi après pluie/neige si le vent moyen atteint « modéré »
+  (20 km/h), les rafales « modérées » (35 km/h), ou qu’un signal d’orage existe.
+  Valeurs et sources priorisées sur la seule fenêtre de trois heures ; aucune
+  mention négative ajoutée lorsque ces phénomènes restent faibles ou absents.
+- Au-delà d’une semaine, date à la suite du jour (« Samedi 31 oct. »). « Tendance »
+  à côté des pictogrammes de courbe et d’actualisation, sans barre verticale.
+- Courbe quotidienne placée juste au-dessus de la rangée concernée, sur toute
+  la largeur. Aucun défilement automatique ; position conservée lors du clic.
+  Ordre recalculé selon le nombre de colonnes après redimensionnement.
+- Validation : 81 tests check:sites passent ; navigateur à 320 et 1280 px sans
+  débordement, 17 indicateurs non interactifs, dates/Tendance vérifiées, bouton
+  du diagramme 3 h contrôlé. Clic direct sur un jour lointain : position verticale
+  avant/après identique et courbe juste au-dessus de la rangée.
+- L’aperçu utilise toujours les JSON locaux préparés ; il ne suit pas les nouvelles
+  publications publiques (limite expliquée à l’utilisateur). Aucun push/déploiement.
+- Même URL et commande de reconstruction. Captures terre-rouge-3h-indicateurs.png
+  et terre-rouge-indicateurs-tendance.png dans les visualisations du chat.
+
+# Cartes des Tatins pour Terre Rouge — 23 octobre 2026, v3.286 non publiée
+
+Nouvelle demande : abandonner les lignes quotidiennes horizontales de l’essai
+précédent et reprendre la présentation des Tatins pour aujourd’hui et les jours
+suivants, en gardant les données et la courbe propres à Terre Rouge.
+
+- Même grille et mêmes styles de cartes que les Tatins : trois colonnes au-delà
+  de 1100 px, deux jusqu’à 720 px, une en dessous. Matin, Après-midi, Soir et Nuit
+  verticalement dans chaque carte ; détail météo intégré au créneau au clic.
+  Aujourd’hui et Demain nommés comme aux Tatins ; un seul détail ouvert à la fois.
+- Seize jours conservés ; mention « Tendance » à partir de J+8. Données Terre Rouge
+  inchangées : priorités AROME, ARPEGE puis Open-Meteo, cumuls natifs, estimations
+  et inconnues conservés. Aucune synthèse des modèles copiée des Tatins.
+- Le pictogramme à côté du jour ouvre la courbe Terre Rouge au-dessus des cartes,
+  sur toute leur largeur. Un seul graphique ouvert ; bouton de fermeture, contrôles
+  des couches et option heure par heure conservés. Marges symétriques conservées.
+- La pastille de confiance des Tatins devient un bouton d’actualisation : flèche
+  circulaire verte/orange/rouge. Elle indique l’ancienneté des acquisitions des
+  sources réellement utilisées pour ce jour : vert jusqu’à 90 min, orange jusqu’à
+  3 h, rouge ensuite ou si date absente. Dates par source au survol et au focus.
+- Au clic, relecture sans cache navigateur de dashboard.json et week.json publiés,
+  donc renouvellement des données déjà collectées, sans collecte API privée côté
+  navigateur. Boutons occupés pendant la requête ; échec signalé en rouge sans
+  effacer les dernières données. Créneau, courbe et réglages conservés ; focus rendu
+  au bouton. Les événements de cartes retirées pendant un rendu sont ignorés.
+- Frise 3 h et fond des courbes quotidiennes inchangés depuis v3.285.
+- Même URL http://127.0.0.1:4177/terre-rouge-test/ ; reconstruction avec l’option
+  historique --presentation=tatins-rows. Aucun push ni déploiement.
+- Validation : 79 tests check:sites et 4 tests d’interface passent. Navigateur :
+  seize cartes, huit mentions Tendance ; trois colonnes à 1280 px, deux à la largeur
+  habituelle et une à 320 px ; aucun débordement. Détails, courbe pleine largeur,
+  commandes du vent, fermeture et exclusion des autres courbes contrôlés.
+  Actualisation réussie, détail et courbe conservés, focus rendu au bouton.
+  Capture : terre-rouge-cartes-tatins.png dans les visualisations du chat.
+
+# Frise 3 h simplifiée — 23 octobre 2026, v3.285 non publiée
+
+- Un cumul PIAF exactement nul affiche « Pas de pluie » sur la frise 3 h.
+  La mention « (partiel) » reste présente si la couverture est incomplète ;
+  les données absentes ne deviennent pas une annonce sèche.
+- Fond blanc uniforme de la frise 3 h, sans colorisation jour/nuit.
+- Changement limité à cet aperçu local ; les courbes quotidiennes gardent
+  leur fond existant. Même URL, aucun push ni déploiement.
+- Validation : 78 tests `check:sites` passent ; vérification visuelle du résumé
+  et du fond blanc dans le navigateur.
+
+# Nouvelle frise 3 h de l’essai local — 23 octobre 2026, v3.284 non publiée
+
+- Marges de la courbe quotidienne égales en haut, sur les côtés et en bas :
+  12 px sur grand écran, 7 px sur mobile.
+- Sur les 3 h : résumé température min/max et cumul PIAF, puis pictogrammes
+  et diagramme de précipitations seul. Courbe et points de température supprimés
+  uniquement de cet essai. Frise de 160 px ; températures résumées sur la fenêtre
+  exacte, avec la priorité de sources existante et les extrema aux heures natives.
+- Cumul nul acquis, cumul partiel et absence PIAF distincts. Le cumul PIAF reste
+  en mm équivalent eau ; aucune substitution par un cumul de modèle météo.
+- Segments de précipitations colorés selon leur nature acquise (pluie, neige,
+  mélange, verglaçant ou inconnue), avec modèle de phase indiqué au survol.
+  Coupure aux frontières natives sans changer le cumul PIAF. La neige fraîche
+  en cm, lorsqu’elle existe, reste une estimation de modèle séparée et sourcée.
+- Validation : 78 tests `check:sites` passent, dont extrema/priorités, cumul
+  conservé au changement de phase, neige et distinction sec/partiel/indisponible.
+  Navigateur contrôlé à 1280 et 320 px : pas de débordement, aucune courbe de
+  température sur la frise 3 h, marges vérifiées et ouverture quotidienne conservée.
+- Même aperçu local et même reconstruction. Aucun push ni déploiement.
+  Capture : `terre-rouge-3h-resume.png` dans les visualisations du chat.
+
+# Ajustements de l’essai local le 23 octobre 2026 — v3.283, non publiée
+
+- Indicateurs du créneau disposés horizontalement : ciel, précipitations,
+  vent/rafales groupés et orage, chacun avec son vrai résumé météo.
+  Quatre colonnes sur grand écran ; deux sur écran étroit, sans débordement.
+- Frise « Les 3 prochaines heures » réduite de 260 à 190 px pour cet essai.
+  Le rendu compact est une option du prototype ; le rendu public reste inchangé.
+- Le clic sur Matin, Après-midi, Soir ou Nuit ouvre uniquement ses indicateurs.
+  Un bouton avec le pictogramme de courbe des Tatins, près du titre du jour,
+  affiche ou masque séparément la courbe quotidienne Terre Rouge.
+  La courbe peut être ouverte sans créneau sélectionné ; son état est conservé
+  pendant les rafraîchissements, comme les réglages et le créneau ouvert.
+- URL et reconstruction inchangées (voir ci-dessous). Aucun push ni déploiement.
+- Validation : 76 tests `check:sites` passent et syntaxe de l’application vérifiée.
+  Navigateur : quatre indicateurs alignés à 1280 px ; quatre créneaux alignés et
+  aucun débordement à 320 px ; détail et courbe ouverts/fermés indépendamment ;
+  aucune erreur console. Capture `terre-rouge-details-horizontaux.png`.
+
+# Correction de l’essai local le 23 octobre 2026 — v3.282, non publiée
+
+Correction explicite de l’utilisateur : reprendre les créneaux des Tatins et
+les vrais résumés météo par caractéristique. La première interprétation avec
+un seul résumé journalier et des descriptions génériques a été refusée.
+
+- URL inchangée : `http://127.0.0.1:4177/terre-rouge-test/` ; option locale
+  `--presentation=tatins-rows`, profil public et dépôt dédié non modifiés.
+- Chaque ligne quotidienne affiche Matin, Après-midi, Soir et Nuit côte à côte,
+  y compris à 320 px (présentation compacte). Nuit = 00–06 h du lendemain,
+  comme aux Tatins ; date de la nuit précisée au survol. Créneaux passés grisés.
+- Un clic sur un créneau ouvre son détail dans un panneau commun sous la ligne,
+  puis la courbe quotidienne Terre Rouge. Un seul créneau ouvert à la fois,
+  conservé pendant les rafraîchissements. La courbe reste celle du jour civil.
+- Détail vertical des Tatins : nuages ; précipitations ; vent et rafales groupés ;
+  orage. Même pictogramme à cinq niveaux et valeurs entre parenthèses.
+  Résumés avec les fonctions textuelles des Tatins, par exemple « Ciel couvert. »,
+  « Pluie en faible quantité en fin d’après-midi. », « Vent très léger d’O et
+  rafales faibles. », « Pas d’orage. ». Timing pluie issu des intervalles acquis.
+- Supprimés : « Cumul de la journée », « Maximum du vent moyen sur la journée »,
+  « Rafale maximale de la journée » et « Aucun signal dans les créneaux acquis ».
+- Calcul par créneau sur les données déjà priorisées de Terre Rouge : cumuls et
+  proratas natifs conservés ; nuit suivante et nuit de sept heures au changement
+  d’heure testées ; inconnues non assimilées à zéro. Probabilité Open-Meteo
+  seulement si toutes les précipitations du créneau appartiennent à Open-Meteo.
+- Données de l’aperçu renouvelées depuis les JSON publics en lecture seule,
+  sans collecte API privée ni publication. Même fichier local de données et
+  même commande de reconstruction que l’essai v3.281 ci-dessous.
+- Validation : 387 tests passent ; 76 tests `check:sites`, 4 tests d’interface,
+  `check:pages` passent. Navigateur : créneaux alignés à 320 px, aucun débordement,
+  ouverture au clavier, un seul créneau sélectionné, détail et graphique présents.
+  DOM vérifié à 1280 px ; largeur habituelle restaurée. Aucune erreur navigateur.
+  Capture : `terre-rouge-creneaux-tatins.png` dans les visualisations du chat.
+- Aucun push ni déploiement. Point de restauration et version publique v3.280
+  conservés ; les sections suivantes décrivent l’historique de l’essai refusé.
+
+# Essai local du 23 octobre 2026 — v3.281, non publié
+
+Demande : reprendre la présentation des prévisions des Tatins avec une ligne par
+jour ; au clic, les indicateurs détaillés des Tatins et la courbe de Terre Rouge.
+
+- Aperçu distinct : `http://127.0.0.1:4177/terre-rouge-test/`, onglet ouvert.
+  Serveur local : `PREVIEW_PORT=4177 node scripts/preview-sites.mjs`.
+- Option volontairement locale : `--presentation=tatins-rows` ajoute uniquement
+  `dailyPresentation: tatins-rows` dans la configuration générée de cet aperçu.
+  Le profil Terre Rouge par défaut n’active pas cette expérience.
+- Résumé compact date/pictogramme/min/max/pluie/neige ; seize lignes quotidiennes.
+  Un seul jour ouvert à la fois. Détail avec indicateurs communs aux Tatins :
+  nébulosité, précipitations, vent, rafales et signal d’orage. Les cinq niveaux
+  et les symboles viennent du même composant de présentation extrait des Tatins.
+- Courbe quotidienne Terre Rouge conservée dans le détail : mêmes données,
+  sources, quantités, axe comprimé, pas natifs, contrôles et option horaire.
+  Les données restent priorisées selon Terre Rouge ; aucune moyenne entre modèles
+  ajoutée pour imiter les synthèses des Tatins. Le jour ouvert et les réglages
+  sont conservés lors des rafraîchissements ; tracé mesuré seulement à l’ouverture.
+- Données de test : copie de la publication du point de restauration,
+  `.cache/weather/terre-rouge-rows-preview.json` ; collecte non modifiée.
+- Reconstruire : `node scripts/prepare-site.mjs --site=terre-rouge --presentation=tatins-rows --output=.cache/sites/terre-rouge-test --state=.cache/weather/terre-rouge-rows-preview.json`.
+- Validation : 385 tests passent ; `check:pages` passe. Navigateur contrôlé en
+  largeur normale, à 390 et 320 px : pas de débordement ; ouverture au clavier,
+  fermeture de l’autre jour, commande du vent, détail horaire et retour ajusté
+  fonctionnels. Aucune erreur navigateur. Capture `terre-rouge-tatins-rows.png`
+  dans le dossier des visualisations de cette conversation.
+- Aucun push, aucun déploiement, aucune modification du dépôt dédié Terre Rouge.
+  Le point de restauration v3.280 ci-dessous reste la référence publiée.
+
+# Point de restauration créé le 23 octobre 2026 à 16 h 53 — v3.280
+
+Demandé par l’utilisateur avant un nouveau test. Code figé au commit `b82f3190849f461f56076d8c8a9207901fc65f5f`.
+Repère distant : `restauration/terre-rouge-20261023-1653-v3.280` dans le dépôt Terre Rouge, poussé et vérifié.
+Sauvegarde autonome : `.cache/restore-points/terre-rouge-20261023-1653-v3.280.zip` ; dossier de détail
+`.cache/restore-points/terre-rouge-20261023-1653-v3.280/` avec manifeste SHA-256 et instructions.
+Contient sources ZIP, dépôt Git complet vérifié et archive exacte du site publié
+(Actions 39972250505, déploiement 7281143631). Sept fichiers centraux, dont les
+JSON météo, comparés au site public : identiques. La copie complète du site
+contient 132 fichiers. Aucun déploiement ni changement de collecte pour ce point.
+Les déclenchements automatiques schedule ont désormais été observés avec succès
+(13:25, 13:55, 14:07 et 14:44 UTC environ), contrairement au constat historique
+initial ci-dessous. Les horaires réels peuvent être retardés par GitHub.
+Avant toute expérimentation, préserver ce repère ; pour un retour en service,
+restaurer le code puis collecter des données fraîches, plutôt que prolonger le PIAF archivé.
+
 # Collecte automatique active le 23 octobre 2026 — v3.280 publiée
 
 L’utilisateur a explicitement autorisé « Oui, active la collecte et la publication

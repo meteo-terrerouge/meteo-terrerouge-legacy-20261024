@@ -9,6 +9,7 @@ export const siteProfiles = Object.freeze({
   'terre-rouge': {
     id: 'terre-rouge', name: 'Météo Terre Rouge', place: 'Terre Rouge', latitude: 44.632186, longitude: 5.631626,
     department: '26', timezone: 'Europe/Paris', forecastLayout: 'daily-rows', forecastDays: 16,
+    dailyPresentation: 'tatins-rows', headerAltitude: 1155,
     features: { ...shared, pearome: false, nowcasting: false, radar: false, pam: false, lightning: false, openMeteo: true, temperatureNormals: false }
   }
 });

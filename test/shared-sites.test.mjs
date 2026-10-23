@@ -133,10 +133,12 @@ test('les deux sites partagent à l’octet près les scripts, styles et symbole
     assert.equal(await hash(outputTatins), await hash(outputTerre), asset);
   }
   const html = await readFile(`${outputTerre}/index.html`, 'utf8');
-  assert.ok(html.includes('<h1>Météo Terre Rouge</h1>'));
+  assert.ok(html.includes('<h1>Météo Boulc<span class="site-title-separator"'));
   assert.ok(html.includes('class="forecast-rows-layout"'));
   assert.ok(html.includes('id="piaf-three-hour-chart"'));
-  assert.ok(html.includes('<p class="header-subtitle">Prévisions météo Météo-France à l’échelle kilométrique</p>'));
+  assert.ok(html.includes('class="site-location"'));
+  assert.ok(!html.includes('nominis.cef.fr'));
+  assert.ok(!html.includes('site-saint'));
   assert.equal((html.match(/<h2 id="three-hour-title">Les 3 prochaines heures<\/h2>/g) || []).length, 1);
   assert.ok(!html.includes('<h2 id="three-hour-title">Dans les 3 h</h2>'));
   assert.ok(!(await readFile(`${outputTatins}/index.html`, 'utf8')).includes('id="piaf-three-hour-chart"'));
@@ -165,7 +167,20 @@ test('les deux sites partagent à l’octet près les scripts, styles et symbole
   assert.equal(JSON.parse(await readFile(`${outputTerre}/manifest.webmanifest`, 'utf8')).scope, './');
   const config = await readFile(`${outputTerre}/runtime-config.js`, 'utf8');
   assert.ok(config.includes('"dataMode": "static"'));
+  assert.ok(config.includes('"dailyPresentation": "tatins-rows"'));
   assert.ok(!config.includes('apikey'));
   assert.ok(publicWeatherFiles(siteProfile('terre-rouge'))['dashboard.json'].data.nowcast === undefined);
   await assert.rejects(prepareSite({ id: 'terre-rouge', output: '.' }), /sortie/);
+});
+
+
+test('l’en-tête local Terre Rouge utilise les coordonnées cibles et l’altitude validée', async () => {
+  const output = await prepareSite({ id: 'terre-rouge', output: '.cache/sites/test-terre-rouge-header', presentation: 'tatins-rows' });
+  const html = await readFile(`${output}/index.html`, 'utf8');
+  assert.ok(html.includes('Météo Boulc<span class="site-title-separator" aria-hidden="true">&gt;</span><wbr><span class="site-title-place">Terre Rouge</span>'));
+  assert.ok(html.includes('44,632186° N · 5,631626° E'));
+  assert.ok(html.includes('1\u202f155 m'));
+  assert.ok(html.includes('id="site-daylight"'));
+  assert.ok(!html.includes('44,640648°'), 'le titre ne prend pas les coordonnées de la maille météo');
+  assert.ok(!html.includes('Prévisions météo Météo-France à l’échelle kilométrique'));
 });

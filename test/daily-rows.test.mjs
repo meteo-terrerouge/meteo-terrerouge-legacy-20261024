@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildDailyRows, dailyRainBars, dailyRainDisplayBars, dailyRainScale, dailyCurveSamples, dailyRowsMarkup, localDateKey, createDailyChartState, dailyChartMarkup, dailyChartSize, dailyHourlyWidth, dailyTimeAxis, dailySummarySample, dailyTimeGroups, piafChartMarkup, precipitationPhase } from '../public/daily-rows.js';
+import { buildDailyRows, dailyRainBars, dailyRainDisplayBars, dailyRainScale, dailyCurveSamples, dailyRowsMarkup, localDateKey, createDailyChartState, dailyChartMarkup, dailyChartSize, dailyHourlyWidth, dailyTimeAxis, dailySummarySample, dailyPeriodSummary, dailyDataUpdateStatus, dailyTimeGroups, piafChartMarkup, precipitationPhase } from '../public/daily-rows.js';
 import { nativeSnowAmounts } from '../weather/precipitation.mjs';
 import { createForecastCollectors } from '../weather/collectors.mjs';
 import { prepareBasicForecast } from '../public/forecast-core.js';
@@ -1135,4 +1135,135 @@ test('PIAF expiré est visiblement indisponible, jamais assimilé au sec ni remp
   const modelSnow = { ...dashboard, arome: { hours: [hour(current + HOUR, nativeSnowAmounts(1, 1))] } };
   const missing = piafChartMarkup(null, { ...options, dashboard: modelSnow });
   assert.ok(!missing.includes('calque-neige-'), 'une phase du modèle ne remplit pas un trou PIAF');
+});
+
+
+test('les cartes Terre Rouge reprennent les colonnes des Tatins et gardent la courbe séparée', () => {
+  const days = buildDailyRows({ now, dashboard: { arome: { hours: Array.from({ length: 49 }, (_, i) => hour(stamp + i * HOUR, { rain: .25, liquidRain: .25, snowfall: 0 })) } } });
+  const state = createDailyChartState(), dates = [];
+  const html = dailyRowsMarkup(days.slice(0, 2), { now, collapsible: true, stateForDate: () => state,
+    periodsMarkup: day => { dates.push(day.date); return ['morning','afternoon','evening','night'].map(key => '<details data-slot-key="' + key + '"><summary>' + key + '</summary></details>').join(''); } });
+  assert.equal(dates.length, 2);
+  assert.equal((html.match(/class="daily-forecast-card/g) || []).length, 2);
+  assert.equal((html.match(/data-slot-key=/g) || []).length, 8);
+  assert.equal((html.match(/class="daily-period-grid"/g) || []).length, 2);
+  assert.ok(html.includes('daily-cards-grid terre-rouge-cards-grid'));
+  assert.ok(!html.includes('day-combined-svg'), 'le graphique attend l’ouverture par son bouton');
+  assert.equal((html.match(/class="day-chart-toggle"/g) || []).length, 2);
+  assert.equal((html.match(/class="[^"]*day-chart-panel[^"]*"[^>]* hidden/g) || []).length, 2);
+  state.chartOpen = true;
+  const reopened = dailyRowsMarkup(days.slice(0, 1), { now, collapsible: true, stateForDate: () => state });
+  assert.match(reopened, /class="day-chart-toggle"[^>]*aria-expanded="true"/);
+  assert.doesNotMatch(reopened, /class="[^"]*day-chart-panel[^"]*"[^>]* hidden/);
+  assert.ok(!dailyRowsMarkup(days.slice(0, 1), { now }).includes('daily-period-grid'));
+});
+
+test('les créneaux gardent leurs cumuls natifs et la nuit suivante, sans transformer les inconnues en zéro', () => {
+  const days = buildDailyRows({ now, dashboard: { arome: { hours: Array.from({ length: 49 }, (_, i) => hour(stamp + i * HOUR,
+    { rain: .25, liquidRain: .25, snowfall: 0, temperature: i < 24 ? 12 : 24 })) } } });
+  const morning = dailyPeriodSummary(days[0], stamp + 6 * HOUR, stamp + 12 * HOUR, now);
+  const night = dailyPeriodSummary(days[0], stamp + 24 * HOUR, stamp + 30 * HOUR, now);
+  assert.equal(morning.rain, 1.5);
+  assert.equal(morning.temperatureMax, 12);
+  assert.equal(night.rain, 1.5);
+  assert.equal(night.temperatureMin, 24);
+  assert.ok(night.completeRain);
+  assert.deepEqual(night.rainSources, ['AROME']);
+  const missing = dailyPeriodSummary(days[0], stamp + 100 * HOUR, stamp + 106 * HOUR, now);
+  assert.equal(missing.rain, null);
+  assert.equal(missing.storm, null);
+  assert.equal(missing.cloudCover, null);
+  assert.equal(missing.available, false);
+});
+
+test('la nuit du changement d’heure conserve ses sept heures et chaque prorata de pluie', () => {
+  const base = Date.parse('2026-10-24T00:00:00Z');
+  const [day] = buildDailyRows({ now: base, dashboard: { arome: { hours: Array.from({ length: 48 }, (_, i) => hour(base + i * HOUR, { rain: 1 })) } } });
+  const start = Date.parse('2026-10-24T22:00:00Z'), end = Date.parse('2026-10-25T05:00:00Z');
+  const night = dailyPeriodSummary(day, start, end, base);
+  assert.equal(night.rain, 7);
+  assert.equal(night.samples.length, 7);
+  const partial = dailyPeriodSummary(day, start, end, start + HOUR / 2);
+  assert.equal(partial.rain, 6.5);
+  assert.ok(partial.estimated);
+});
+
+
+test('frise compacte : min/max de la source prioritaire, cumul PIAF conservé et courbe de température supprimée', () => {
+  const dashboard = { arome: { hours: [hour(now - HOUR, { temperature: 9, rain: 0 }),
+    hour(now, { temperature: 10, rain: 0 }), hour(now + HOUR, { temperature: 15, rain: 1, liquidRain: 1, snowfall: 0 }),
+    hour(now + 2 * HOUR, { temperature: 5, rain: 1, liquidRain: 0, snowfall: 1 }),
+    hour(now + 3 * HOUR, { temperature: 12, rain: 1, liquidRain: 1, snowfall: 0 }), hour(now + 4 * HOUR, { temperature: 99 })] },
+    openMeteo: { hours: Array.from({ length: 5 }, (_, i) => hour(now + i * HOUR, { temperature: -99 })) } };
+  // The single PIAF interval crosses all three model phase intervals.
+  const forecast = { rainSteps: [{ intervalStart: now, intervalEnd: now + 3 * HOUR, precipitation: 3 }] };
+  const html = piafChartMarkup(forecast, { now, dashboard, compact: true });
+  assert.match(html, /<small>Min\.<\/small><b>5°<\/b>/);
+  assert.match(html, /<small>Max\.<\/small><b>15°<\/b>/);
+  assert.match(html, /<small>Cumul<\/small><b>3 mm<\/b>/);
+  assert.ok(!html.includes('piaf-temperature-line'));
+  assert.ok(!html.includes('piaf-temperature-point'));
+  assert.ok(html.includes('piaf-intensity-line piaf-phase-rain'));
+  assert.ok(html.includes('piaf-intensity-line piaf-phase-snow'));
+  assert.ok(html.includes('<small>Neige</small>'));
+  assert.ok(html.includes('Neige fraîche estimée par AROME'));
+  assert.ok(!html.includes('Précip. PIAF mm/h équiv. eau'));
+  assert.ok(!html.includes('class="day-source"'));
+  assert.ok(html.includes('estimation distincte du cumul PIAF'));
+  assert.ok(!/NaN|undefined/.test(html));
+});
+
+test('frise compacte : un cumul sec connu, un cumul partiel et une absence PIAF restent distincts', () => {
+  const options = { now, compact: true };
+  const step = (duration, precipitation) => ({ rainSteps: [{ intervalStart: now, intervalEnd: now + duration, precipitation }] });
+  const dry = piafChartMarkup(step(3 * HOUR, 0), options);
+  assert.match(dry, /<b>Pas de pluie<\/b>/);
+  assert.ok(!dry.includes('piaf-daylight'));
+  assert.match(piafChartMarkup(step(HOUR, 0), options), /<b>Pas de pluie \(partiel\)<\/b>/);
+  assert.ok(!dry.includes('piaf-intensity-line'));
+  const partial = piafChartMarkup(step(HOUR, .25), options);
+  assert.match(partial, /<small>Cumul<\/small><b>0,25 mm \(partiel\)<\/b>/);
+  const missing = piafChartMarkup(null, options);
+  assert.match(missing, /<small>Cumul<\/small><b>— mm<\/b>/);
+  assert.ok(missing.includes('PIAF indisponibles'));
+  assert.ok(!missing.includes('piaf-intensity-line'));
+  assert.ok(!missing.includes('piaf-temperature-line'));
+});
+
+
+test('le contrôle coloré dépend de la date d’acquisition des sources réellement utilisées', () => {
+  const day = (...timestamps) => ({ sourceUpdates: timestamps.map((fetchedAt, i) => ({ name: 'source' + i, fetchedAt })) });
+  assert.equal(dailyDataUpdateStatus(day(now - 30 * 60000), now), 'green');
+  assert.equal(dailyDataUpdateStatus(day(new Date(now - 60 * 60000).toISOString()), now), 'green');
+  assert.equal(dailyDataUpdateStatus(day(now - 2 * HOUR), now), 'orange');
+  assert.equal(dailyDataUpdateStatus(day(now - 4 * HOUR, now - 60000), now), 'red');
+  assert.equal(dailyDataUpdateStatus(day(null), now), 'red');
+  assert.equal(dailyDataUpdateStatus(day(), now), 'red');
+  assert.equal(dailyDataUpdateStatus(day(now + HOUR), now), 'red');
+});
+
+
+test('frise 3 h : vent et rafales restent prioritaires, avec signal d’orage sur la seule fenêtre affichée', () => {
+  const dashboard = { arome: { hours: [hour(now, { windSpeed: 12, windGust: 25 }),
+    hour(now + HOUR, { windSpeed: 22, windGust: 40, stormSignal: true }),
+    hour(now + 2 * HOUR, { windSpeed: 15, windGust: 30 }),
+    hour(now + 3 * HOUR, { windSpeed: 18, windGust: 35 }), hour(now + 4 * HOUR, { windSpeed: 120, windGust: 160 })] },
+    openMeteo: { hours: Array.from({ length: 5 }, (_, i) => hour(now + i * HOUR, { windSpeed: 200, windGust: 250 })) } };
+  let hazards;
+  const html = piafChartMarkup(null, { now, compact: true, dashboard, hazardsMarkup: period => { hazards = period; return '<span>résumé vent et orage</span>'; } });
+  assert.deepEqual(hazards, { windSpeed: 22, windGust: 40, storm: true });
+  assert.ok(html.includes('résumé vent et orage'));
+  let updates;
+  piafChartMarkup(null, { now, compact: true, dashboard, updateMarkup: data => { updates = data.sourceUpdates; return ''; } });
+  assert.ok(updates.some(update => update.name === 'PIAF'), 'une absence PIAF doit peser dans son indicateur');
+});
+
+test('la fraîcheur PIAF emploie ses seuils courts et les jours lointains placent la date dans le titre', () => {
+  const status = minutes => dailyDataUpdateStatus({ sourceUpdates: [{ name: 'PIAF', fetchedAt: now - minutes * 60000 }] }, now);
+  assert.equal(status(5), 'green'); assert.equal(status(15), 'orange'); assert.equal(status(25), 'red');
+  const days = buildDailyRows({ now, dashboard: { openMeteo: { hours: Array.from({ length: 16 * 24 }, (_, i) => hour(now + i * HOUR)) } } });
+  const html = dailyRowsMarkup(days, { now, collapsible: true, updateMarkup: () => '<span>actualisation</span>' });
+  assert.match(html, /<h3>jeudi <time datetime="2026-10-29">29 oct\.<\/time><\/h3>/);
+  assert.match(html, /class="day-heading-tools"><span class="day-trend-label">Tendance<\/span><button[\s\S]*?actualisation/);
+  assert.match(html, /<h3>Aujourd’hui <time datetime="2026-10-21">21 oct\.<\/time><\/h3>/);
 });

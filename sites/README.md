@@ -176,3 +176,25 @@ lancé avec `site=terre-rouge`. La première vérification consiste à télécha
 l'artefact et vérifier ses données avant d'activer la publication. Pages ne
 doit pas publier la racine des sources : le site généré est la sortie
 `.cache/sites/terre-rouge/`.
+
+
+## Présentation Terre Rouge
+
+Le profil Terre Rouge active les cartes des Tatins en colonnes responsive avec ses
+propres sources priorisées, seize jours de prévisions et la mention Tendance à
+partir de J+8. Le pictogramme de courbe ouvre la frise Terre Rouge au-dessus de la
+rangée concernée, sans défilement, et replie le créneau ouvert de ce jour.
+
+La frise 3 h montre températures min/max, cumul PIAF, précipitations et pictogrammes,
+avec signalement du vent, des rafales ou de l’orage significatifs. Les indicateurs
+colorés renseignent uniquement sur la fraîcheur des sources. L’en-tête présente
+les coordonnées cibles, l’altitude validée, le soleil et la Lune ; aucun saint du jour.
+
+La publication automatique conserve PIAF toutes les 5 min et les autres
+prévisions chaque heure ; les départs réels dépendent de GitHub Actions.
+Le navigateur relit les JSON publiés chaque minute. La configuration par défaut
+suffit pour la génération et les workflows existants restent inchangés.
+
+La valeur historique dailyPresentation=tatins-rows et l’option
+--presentation=tatins-rows restent compatibles avec les aperçus existants.
+La sauvegarde v3.280 reste le point de restauration avant cette présentation.
