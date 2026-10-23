@@ -2661,12 +2661,8 @@ function renderTestingDailyForecast() {
 
 function dailyDataUpdateMarkup(day) {
   const tone = dailyRowsTools.dailyDataUpdateStatus(day, appNow());
-  const labels = { green: "Données récentes", orange: "Actualisation ancienne", red: "Données anciennes ou indisponibles" };
-  const updates = (day.sourceUpdates || []).map(source => {
-    const stamp = typeof source.fetchedAt === "string" ? Date.parse(source.fetchedAt) : source.fetchedAt;
-    return source.name + " : " + (stamp > 0 && Number.isFinite(stamp) ? dateTimeFormat.format(new Date(stamp)) : "date inconnue");
-  });
-  const title = labels[tone] + "\n" + updates.join("\n");
+  const title = dailyRowsTools.dailyDataUpdateTitle(day, appNow());
+
   return '<span class="daily-confidence-indicator daily-data-refresh ' + tone + '" role="img" aria-label="' + escapeText(title) + '" title="' + escapeText(title) + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 11.6-1L20 9M4 15l2.4 3A7 7 0 0 0 18 17"/></svg></span>';
 }
 

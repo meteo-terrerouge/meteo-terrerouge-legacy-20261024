@@ -587,3 +587,4 @@
 23/10/2026 20:53 — v3.291 — Essai local Terre Rouge : titre sans espaces autour du chevron, suppression de la date avant les horaires solaires et ajout de la phase de la Lune.
 23/10/2026 21:01 — v3.292 — Essai local Terre Rouge : pictogrammes solaires sans flèches avec mentions Levé/Couché et heures, saint du jour Nominis et titre agrandi.
 23/10/2026 21:12 — v3.293 — Terre Rouge : publication des cartes quotidiennes responsive sur seize jours avec Tendance et courbe dédiée, frise 3 h simplifiée, indicateurs d’actualisation et nouvel en-tête avec soleil et Lune ; suppression du saint du jour. Collecte automatique conservée.
+23/10/2026 21:49 — v3.294 — Terre Rouge : retour de l’âge des données en minutes et heures au survol des indicateurs ; suppression de « partiel » après « Pas de pluie » dans la frise 3 h.

@@ -1219,7 +1219,8 @@ test('frise compacte : un cumul sec connu, un cumul partiel et une absence PIAF 
   const dry = piafChartMarkup(step(3 * HOUR, 0), options);
   assert.match(dry, /<b>Pas de pluie<\/b>/);
   assert.ok(!dry.includes('piaf-daylight'));
-  assert.match(piafChartMarkup(step(HOUR, 0), options), /<b>Pas de pluie \(partiel\)<\/b>/);
+  assert.match(piafChartMarkup(step(HOUR, 0), options), /<b>Pas de pluie<\/b>/);
+  assert.match(piafChartMarkup(step(HOUR, 0), options), /couverture partielle/);
   assert.ok(!dry.includes('piaf-intensity-line'));
   const partial = piafChartMarkup(step(HOUR, .25), options);
   assert.match(partial, /<small>Cumul<\/small><b>0,25 mm \(partiel\)<\/b>/);
@@ -1266,4 +1267,16 @@ test('la fraîcheur PIAF emploie ses seuils courts et les jours lointains placen
   assert.match(html, /<h3>jeudi <time datetime="2026-10-29">29 oct\.<\/time><\/h3>/);
   assert.match(html, /class="day-heading-tools"><span class="day-trend-label">Tendance<\/span><button[\s\S]*?actualisation/);
   assert.match(html, /<h3>Aujourd’hui <time datetime="2026-10-21">21 oct\.<\/time><\/h3>/);
+});
+
+test('le survol d’actualisation affiche minutes, heures et date sans rajeunir les données', async () => {
+  const { dailyDataUpdateTitle } = await import('../public/daily-rows.js');
+  const day = fetchedAt => ({ sourceUpdates: [{ name: 'PIAF', fetchedAt }] });
+  assert.ok(dailyDataUpdateTitle(day(now - 12 * 60000), now).includes('PIAF : il y a 12 min ('));
+  assert.ok(dailyDataUpdateTitle(day(now - 135 * 60000), now).includes('PIAF : il y a 2 h 15 min ('));
+  assert.ok(dailyDataUpdateTitle(day(new Date(now - HOUR).toISOString()), now).includes('il y a 1 h 0 min'));
+  assert.ok(dailyDataUpdateTitle(day(now - 12 * 60000), now + 60000).includes('il y a 13 min'));
+  assert.ok(dailyDataUpdateTitle(day(null), now).includes('date inconnue'));
+  assert.ok(dailyDataUpdateTitle(day(now + HOUR), now).includes('date future'));
+  assert.ok(dailyDataUpdateTitle(day(now), now).includes('à l’instant'));
 });

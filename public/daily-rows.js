@@ -648,6 +648,20 @@ export function dailyPeriodSummary(day, start, end, now = Date.now()) {
     available: rains.length > 0 || samples.some(sample => ['temperature', 'cloudCover', 'windSpeed'].some(key => valid(sample[key]))) };
 }
 
+export function dailyDataUpdateTitle(day, now = Date.now(), timezone = 'Europe/Paris') {
+  const labels = { green: 'Données récentes', orange: 'Actualisation ancienne', red: 'Données anciennes ou indisponibles' };
+  const format = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: timezone });
+  const updates = (day.sourceUpdates || []).map(source => {
+    const stamp = typeof source.fetchedAt === 'string' ? Date.parse(source.fetchedAt) : source.fetchedAt;
+    if (!valid(stamp) || stamp <= 0) return source.name + ' : date inconnue';
+    const minutes = Math.floor((now - stamp) / 60000);
+    const age = minutes < 0 ? 'date future' : minutes === 0 ? 'à l’instant'
+      : minutes < 60 ? 'il y a ' + minutes + ' min' : 'il y a ' + Math.floor(minutes / 60) + ' h ' + minutes % 60 + ' min';
+    return source.name + ' : ' + age + ' (' + format.format(stamp) + ')';
+  });
+  return [labels[dailyDataUpdateStatus(day, now)], ...updates].join('\n');
+}
+
 // The coloured control reports acquisition age, independently of forecast confidence.
 export function dailyDataUpdateStatus(day, now = Date.now()) {
   const updates = day.sourceUpdates || [];
@@ -850,7 +864,7 @@ export function piafChartMarkup(forecast, { now = Date.now(), width = 600, compa
   const partial = covered < end - now - 1;
   const hazards = hazardsMarkup({ windSpeed: extent(temperatureSamples, 'windSpeed', [null, null])[1],
     windGust: extent(temperatureSamples, 'windGust', [null, null])[1], storm: temperatureSamples.some(sample => sample.stormSignal) });
-  const summary = compact ? `<div class="piaf-three-hour-summary"><span class="piaf-summary-temperature piaf-summary-min" title="Minimum prévu sur les trois prochaines heures${temperaturePartial ? ' ; données partielles' : ''}"><small>Min.</small><b>${number(temperatures[0])}°</b></span><span class="piaf-summary-temperature piaf-summary-max" title="Maximum prévu sur les trois prochaines heures${temperaturePartial ? ' ; données partielles' : ''}"><small>Max.</small><b>${number(temperatures[1])}°</b></span><span class="piaf-summary-precipitation" title="Cumul PIAF des trois prochaines heures en équivalent eau${partial ? ' ; couverture partielle' : ''}">${samples.length && total === 0 ? '' : '<small>Cumul</small>'}<b>${samples.length && total === 0 ? 'Pas de pluie' : (samples.length ? rainDetailNumber(total) : '—') + ' mm'}${samples.length && partial ? ' (partiel)' : ''}</b></span>${snowTotal > 0 ? `<span class="piaf-summary-snow" title="Neige fraîche estimée par ${escape(snowSources.join(' · '))} ; estimation distincte du cumul PIAF en équivalent eau ; pas une hauteur au sol"><small>Neige</small><b>${escape(snowLabel(snowTotal))}${snowPartial ? ' (partiel)' : ''}</b></span>` : ''}${hazards}</div>` : '';
+  const summary = compact ? `<div class="piaf-three-hour-summary"><span class="piaf-summary-temperature piaf-summary-min" title="Minimum prévu sur les trois prochaines heures${temperaturePartial ? ' ; données partielles' : ''}"><small>Min.</small><b>${number(temperatures[0])}°</b></span><span class="piaf-summary-temperature piaf-summary-max" title="Maximum prévu sur les trois prochaines heures${temperaturePartial ? ' ; données partielles' : ''}"><small>Max.</small><b>${number(temperatures[1])}°</b></span><span class="piaf-summary-precipitation" title="Cumul PIAF des trois prochaines heures en équivalent eau${partial ? ' ; couverture partielle' : ''}">${samples.length && total === 0 ? '' : '<small>Cumul</small>'}<b>${samples.length && total === 0 ? 'Pas de pluie' : (samples.length ? rainDetailNumber(total) : '—') + ' mm'}${samples.length && total > 0 && partial ? ' (partiel)' : ''}</b></span>${snowTotal > 0 ? `<span class="piaf-summary-snow" title="Neige fraîche estimée par ${escape(snowSources.join(' · '))} ; estimation distincte du cumul PIAF en équivalent eau ; pas une hauteur au sol"><small>Neige</small><b>${escape(snowLabel(snowTotal))}${snowPartial ? ' (partiel)' : ''}</b></span>` : ''}${hazards}</div>` : '';
   const usedSources = [...new Set(weather.flatMap(sample => Object.values(sample.sources)))];
   for (const source of snowSources) if (!usedSources.includes(source)) usedSources.push(source);
   if (samples.length) usedSources.push('PIAF');

@@ -1,3 +1,64 @@
+# Correction du survol et de la frise — 23 octobre 2026, v3.294
+
+- L’indicateur non interactif affiche pour chaque source l’âge en minutes ou heures,
+  puis la date et l’heure exactes. Même rendu dans la frise 3 h et les jours.
+- « Pas de pluie » dans la frise n’est plus suivi de « partiel » lorsque les valeurs
+  acquises sont nulles. La couverture reste décrite au survol du cumul ; un cumul
+  positif incomplet conserve sa précision, sans changer ni compléter les données.
+- Seuils de fraîcheur et collecte inchangés. La fiabilisation du renouvellement
+  reste à traiter : ordonnanceur GitHub irrégulier et cache Pages constatés.
+- Validation : 83 tests check:sites passent et syntaxe app.js vérifiée.
+
+# Audit de fraîcheur PIAF — 23 octobre 2026, vers 21 h 37
+
+L’utilisateur signale « actualisation ancienne » après publication et demande
+si GitHub Actions est réellement programmé. Audit en lecture seule, aucun réglage modifié.
+
+- Workflow 394028127 actif, cron toutes les 5 min aux minutes 3, 8, etc. et prévisions
+  à la minute 17. La cadence des départs réellement observés est irrégulière :
+  dernières exécutions planifiées à 20:46, 20:57 puis 21:21 ; aucune autre à 21:36.
+- Exécution 40010739549 réussie : 37 requêtes PIAF, aucune erreur, acquisition
+  à 21:21:55, cycle 19:10 UTC. Artefact weather-update-piaf téléchargé et vérifié.
+- Artefact Pages github-pages 12525389000 de cette même exécution : contient bien
+  le nouveau PIAF acquis à 21:21:55. Déploiement automatique 7286843817 réussi.
+- Pourtant à 21:36:52, le JSON public renvoyait toujours le cycle 19:05 UTC acquis
+  à 21:17:13, même avec URL unique et requête no-cache. En-têtes : X-Cache HIT,
+  Age 523, Cache-Control max-age=600, Last-Modified 19:17:39 UTC.
+  Un décalage de cache Pages s’ajoute donc aux déclenchements irréguliers.
+- Documentation officielle GitHub : les événements schedule peuvent être
+  retardés, voire abandonnés sous charge. Source :
+  https://docs.github.com/en/actions/how-tos/troubleshoot-workflows
+- Ne pas promettre un renouvellement fiable toutes les 5 min avec ce seul
+  montage GitHub Actions + GitHub Pages. Le workflow est correctement programmé
+  et fonctionne, mais l’âge des JSON effectivement servis doit rester surveillé
+  et l’indicateur ne doit pas être artificiellement reverdi.
+
+# Version publiée — 23 octobre 2026, v3.293
+
+- Publication vérifiée sur https://meteo-terrerouge.github.io/ : nouveau titre,
+  seize cartes, huit mentions Tendance, aucun saint du jour.
+- Commit de production : 3650feacac2323163e260f1fb960a9c0fc7e7e0c.
+- Exécution de collecte et publication réussie : 40010114426
+  (https://github.com/meteo-terrerouge/meteo-terrerouge.github.io/actions/runs/40010114426).
+  PIAF et prévisions : succès ; déploiement Pages : succès.
+- JSON publics vérifiés : version 3.293, coordonnées cibles correctes, cycle PIAF
+  du 23/10 à 19:05 UTC récupéré à 21:17 heure de Paris, AROME récupéré à 21:02.
+  Navigateur public : indicateur vert, données récentes et aucune erreur console.
+- Scripts et styles publics comparés à l’aperçu validé : identiques après
+  normalisation CRLF/LF (différence Windows/Linux uniquement).
+- Workflow refresh-terre-rouge.yml actif et inchangé : PIAF toutes les 5 min,
+  prévisions contrôlées chaque heure selon leurs cycles ; publication automatique.
+  Les départs réels restent soumis à l’ordonnanceur GitHub. Navigateur : JSON relus
+  chaque minute. La version en ligne utilise les données régulièrement publiées.
+- Premier renouvellement planifié après publication vérifié : exécution
+  40010739549, événement schedule, commit 3650fea ; collecte PIAF et publication
+  réussies. Le fonctionnement automatique a donc été observé sur la nouvelle version.
+- Déploiement Pages initial : 7286752833, environnement github-pages.
+- Point de restauration v3.280 conservé. Copie locale dédiée propre après commit.
+- Contrôles : 393 tests, check et check:pages passent dans le code commun ;
+  82 tests check:sites passent dans le dépôt dédié.
+- Capture publique : terre-rouge-publie-v3293.png dans les visualisations du chat.
+
 # Publication autorisée — 23 octobre 2026, v3.293
 
 L’utilisateur demande explicitement « on vire la Saint du jour et on publie »,
