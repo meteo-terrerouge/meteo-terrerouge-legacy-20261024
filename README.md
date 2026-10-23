@@ -1,28 +1,23 @@
 # Météo Terre Rouge
 
-Site : https://meteo-terrerouge.github.io/
+Destination prévue : meteo-terrerouge/meteo-terrerouge.github.io.
+Sources et composants partagés avec Météo les Tatins ; profil terre-rouge sans radar ni nowcasting.
 
-Les composants graphiques et les collecteurs sont partagés avec Météo les Tatins.
-Le profil Terre Rouge utilise Météo-France, sans radar ni nowcasting.
-
-## Publication manuelle
-
-Dans Actions, lancer « Préparer les sites météo » avec :
-- site : terre-rouge
-- group : all pour les sources arrivées à échéance, piaf pour PIAF uniquement
-- publish : true pour publier le résultat sur GitHub Pages
-
-Sans publish, le workflow fournit seulement une archive téléchargeable.
-Les données principales sont vérifiées avant publication. Aucune planification automatique n'est activée.
-La clé est conservée dans le secret METEO_FRANCE_API_KEY_TERRE_ROUGE.
-Ne jamais ajouter une clé dans les sources ou dans les fichiers publics.
-
-## Préparation locale
+## Vérifier localement
 
 `npm ci`
 
 `npm run build:site -- --site=terre-rouge`
 
-Le site généré se trouve dans `.cache/sites/terre-rouge/`.
-La racine du dépôt contient les sources et ne doit pas servir de racine de publication.
-Consulter `sites/README.md` pour l'architecture et les limites actuelles.
+## Préparer des données avec GitHub Actions
+
+Ajouter uniquement le secret METEO_FRANCE_API_KEY_TERRE_ROUGE dans Settings → Secrets and variables → Actions.
+Puis lancer « Préparer les sites météo » avec site=terre-rouge et group=all.
+Télécharger l’artefact site-terre-rouge. Il contient le site statique et ses données publiques.
+
+Cette étape ne publie rien. Ne pas activer Pages à la racine des sources : la sortie à publier est .cache/sites/terre-rouge/.
+Le workflow refresh-terre-rouge.yml collecte et publie automatiquement PIAF toutes les 5 min et les autres prévisions chaque heure, uniquement dans le dépôt Terre Rouge.
+Son installation sur la branche principale active cette cadence : obtenir l’autorisation explicite de publication avant l’import.
+Les jetons et états météo locaux ne font pas partie de cet import.
+
+Consulter sites/README.md pour l’architecture et les limites actuelles.

@@ -138,8 +138,21 @@ pas activé dans cette première étape : il devra préserver les instantanés
 cohérents du nowcasting et la cadence PIAF des Tatins. Actions ne garantit pas
 un lancement ponctuel et sa planification minimale est de 5 min.
 
-La publication de Terre Rouge est déclenchable manuellement ; aucune cadence
-automatique n'est activée. Les Tatins ne sont pas déployés par ce workflow.
+Le workflow `refresh-terre-rouge.yml` prépare une collecte PIAF toutes les 5 min
+(minutes 3, 8, etc.) et les autres prévisions chaque heure à la minute 17 UTC.
+Les deux collectes sont indépendantes ; les durées de cache restent propres
+à chaque source (AROME et Open-Meteo 1 h, ARPEGE 6 h, etc.). La planification
+GitHub peut démarrer en retard ; ce n'est pas une garantie à la minute.
+La publication fusionne les dernières acquisitions par cycle et date de
+collecte, sous un verrou couvrant fusion, génération et déploiement. Un
+traitement prévision long ne doit pas remplacer un PIAF plus récent.
+Les caches PIAF, prévisions et fusion finale sont séparés ; les JSON publics
+servent de restauration durable si GitHub évince les caches. Une panne
+partielle garde les acquisitions réussies et est signalée en échec dans Actions.
+Le workflow est limité au dépôt Terre Rouge : aucune collecte ou publication
+Tatins. Son installation sur la branche par défaut active la planification et
+la publication automatique, explicitement autorisées par l’utilisateur le
+23 octobre 2026. Le workflow manuel reste disponible pour les diagnostics.
 
 ## Préparation du dépôt Terre Rouge
 

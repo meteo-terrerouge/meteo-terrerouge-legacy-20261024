@@ -1307,7 +1307,7 @@ body.forecast-rows-layout { min-width: 0; }
 #piaf-three-hour-chart { margin: 0; min-width: 0; }
 .piaf-three-hour-view { overflow: hidden; border: 1px solid #cfd9e0; border-radius: 8px; }
 .piaf-chart-total { margin-left: auto; color: #258bc0; font-weight: 750; }
-.piaf-legend-rain[aria-disabled=true] { opacity: .4; }
+.piaf-legend-rain[aria-disabled=true] { color: #667c89; }
 .piaf-intensity-chart { display: block; width: 100%; height: 100%; }
 .piaf-intensity-chart text { fill: #67818e; font: 10px system-ui; }
 .piaf-intensity-area { fill: #a9d4e8; opacity: .45; }

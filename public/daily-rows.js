@@ -690,7 +690,10 @@ export function piafChartMarkup(forecast, { now = Date.now(), width = 600, timez
     const rain = samples.find(item => item.start <= Math.min(time, end - 1) && item.end > Math.min(time, end - 1));
     sample.rain = rain?.insignificant ? 0 : rain?.rate ?? null;
     const phaseInterval = precipitationIntervals.find(item => item.start <= Math.min(time, end - 1) && item.end > Math.min(time, end - 1));
-    if (phaseInterval) {
+    if (!rain) {
+      sample.phase = 'unknown';
+      sample.phaseDescription = 'Précipitations PIAF indisponibles à cette heure ; ce pictogramme ne signifie pas un temps sec';
+    } else if (phaseInterval) {
       const dry = sample.rain === 0;
       Object.assign(sample, { phase: dry ? 'dry' : phaseInterval.phase,
         snowfall: dry ? 0 : valid(phaseInterval.snowfall) ? phaseInterval.snowfall * HOUR / (phaseInterval.end - phaseInterval.start) : null,
@@ -763,7 +766,8 @@ export function piafChartMarkup(forecast, { now = Date.now(), width = 600, timez
   if (samples.length) usedSources.push('PIAF');
   const metadata = { AROME: dashboard.arome, ARPEGE: week, 'Open-Meteo': dashboard.openMeteo, PIAF: dashboard.piaf };
   const sourceLine = sourceUpdatesMarkup(usedSources.map(name => ({ name, fetchedAt: metadata[name]?.fetchedAt })), timezone, now);
+  const rainLegend = !samples.length ? 'Précip. PIAF indisponibles' : onlyTraces ? 'Précip. PIAF' : 'Précip. PIAF mm/h équiv. eau';
   const lightStops = weather.map(sample => `<stop offset="${(sample.stamp - now) / (end - now) * 100}%" stop-color="${escape(backgroundForTime(sample.stamp))}"/>`).join('');
   const background = `<defs><linearGradient id="piaf-daylight" gradientUnits="userSpaceOnUse" x1="${left}" x2="${right}" y1="0" y2="0">${lightStops}</linearGradient></defs><rect width="${width}" height="${height}" fill="url(#piaf-daylight)"/>`;
-  return `<section class="piaf-three-hour-view"><div class="day-chart-key"><span class="piaf-legend-temperature">Température °C</span><span class="piaf-legend-rain"${samples.length ? '' : ' aria-label="PIAF indisponible" aria-disabled="true" title="PIAF indisponible"'}>${onlyTraces ? 'Précip. PIAF' : 'Précip. PIAF mm/h équiv. eau'}</span>${rainStatus}<span class="day-key-spacer" aria-hidden="true"></span>${sourceLine}</div><div class="day-combined-canvas piaf-timeline-canvas" style="height:${height}px"><svg class="piaf-intensity-chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="group" aria-label="Frise des trois prochaines heures : température, précipitations PIAF et pictogrammes">${background}${ticks}${hasQuantifiedRain ? axis : ''}${areas}${lines}${traces}${points}${temperatureLine}${temperaturePoints}</svg><div class="day-timeline-header">${header}</div></div></section>`;
+  return `<section class="piaf-three-hour-view"><div class="day-chart-key"><span class="piaf-legend-temperature">Température °C</span><span class="piaf-legend-rain"${samples.length ? '' : ' aria-label="PIAF indisponible" aria-disabled="true" title="PIAF indisponible"'}>${rainLegend}</span>${rainStatus}<span class="day-key-spacer" aria-hidden="true"></span>${sourceLine}</div><div class="day-combined-canvas piaf-timeline-canvas" style="height:${height}px"><svg class="piaf-intensity-chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="group" aria-label="Frise des trois prochaines heures : température, précipitations PIAF et pictogrammes">${background}${ticks}${hasQuantifiedRain ? axis : ''}${areas}${lines}${traces}${points}${temperatureLine}${temperaturePoints}</svg><div class="day-timeline-header">${header}</div></div></section>`;
 }

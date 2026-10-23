@@ -1,0 +1,164 @@
+name: Actualiser Terre Rouge
+
+on:
+  schedule:
+    - cron: '3-58/5 * * * *'
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      group:
+        description: Données à renouveler et publier
+        type: choice
+        options: [all, piaf, forecast]
+        default: all
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    if: github.repository == 'meteo-terrerouge/meteo-terrerouge.github.io'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        group: ${{ fromJSON(github.event_name == 'schedule' && (github.event.schedule == '17 * * * *' && '["forecast"]' || '["piaf"]') || (inputs.group == 'all' && '["piaf","forecast"]' || format('["{0}"]', inputs.group))) }}
+    concurrency:
+      group: weather-auto-collect-${{ matrix.group }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/cache/restore@v6
+        with:
+          path: .cache/collect-${{ matrix.group }}/terre-rouge.json
+          key: weather-auto-v1-${{ matrix.group }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: weather-auto-v1-${{ matrix.group }}-
+      - name: Récupérer aussi les acquisitions du workflow manuel existant
+        uses: actions/cache/restore@v6
+        with:
+          path: .cache/weather-state/terre-rouge.json
+          key: weather-state-v1-terre-rouge-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: weather-state-v1-terre-rouge-
+      - name: Fusionner la transition depuis la collecte manuelle
+        env:
+          GROUP: ${{ matrix.group }}
+        run: |
+          if [ -d .cache/weather-state ]; then
+            node scripts/merge-weather-state.mjs .cache/weather-state ".cache/collect-$GROUP"
+          fi
+      - name: Retrouver les dernières données publiques
+        env:
+          GROUP: ${{ matrix.group }}
+        run: node scripts/restore-published-weather.mjs --state=".cache/collect-$GROUP/terre-rouge.json"
+      - name: Collecter les échéances à renouveler
+        id: collection
+        continue-on-error: true
+        env:
+          GROUP: ${{ matrix.group }}
+          METEO_FRANCE_API_KEY: ${{ secrets.METEO_FRANCE_API_KEY_TERRE_ROUGE }}
+        run: node scripts/collect-weather.mjs --site=terre-rouge --group="$GROUP" --state=".cache/collect-$GROUP/terre-rouge.json" --output=".cache/collect-$GROUP/terre-rouge.json"
+      - name: Conserver chaque acquisition réussie
+        if: always() && hashFiles(format('.cache/collect-{0}/terre-rouge.json', matrix.group)) != ''
+        uses: actions/cache/save@v6
+        with:
+          path: .cache/collect-${{ matrix.group }}/terre-rouge.json
+          key: weather-auto-v1-${{ matrix.group }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: weather-update-${{ matrix.group }}
+          path: .cache/collect-${{ matrix.group }}/terre-rouge.json
+          if-no-files-found: error
+          retention-days: 1
+      - name: Signaler toute source en échec
+        if: steps.collection.outcome == 'failure'
+        run: exit 1
+
+  publish:
+    if: ${{ always() && !cancelled() && github.repository == 'meteo-terrerouge/meteo-terrerouge.github.io' && (needs.collect.result == 'success' || needs.collect.result == 'failure') }}
+    needs: collect
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    # Serialize merge, build and deployment together, not just the final upload.
+    concurrency:
+      group: pages-terre-rouge
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/cache/restore@v6
+        with:
+          path: .cache/weather-state/terre-rouge.json
+          key: weather-published-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: weather-published-v1-
+      - uses: actions/cache/restore@v6
+        with:
+          path: .cache/collect-piaf/terre-rouge.json
+          key: weather-auto-v1-piaf-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: weather-auto-v1-piaf-
+      - uses: actions/cache/restore@v6
+        with:
+          path: .cache/collect-forecast/terre-rouge.json
+          key: weather-auto-v1-forecast-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: weather-auto-v1-forecast-
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: weather-update-*
+          path: .cache/downloaded
+      - name: Fusionner les acquisitions sans revenir à un ancien cycle
+        run: |
+          for directory in .cache/collect-piaf .cache/collect-forecast; do
+            if [ -d "$directory" ]; then node scripts/merge-weather-state.mjs "$directory" .cache/weather-state; fi
+          done
+          node scripts/restore-published-weather.mjs --state=.cache/weather-state/terre-rouge.json
+          for directory in .cache/downloaded/weather-update-*; do
+            node scripts/merge-weather-state.mjs "$directory" .cache/weather-state
+          done
+      - name: Vérifier les données avant publication
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFile } from 'node:fs/promises';
+          import { siteProfile } from './sites/profiles.mjs';
+          const profile = siteProfile('terre-rouge');
+          const entry = JSON.parse(await readFile('.cache/weather-state/terre-rouge.json', 'utf8'));
+          if (entry.siteId !== profile.id || entry.latitude !== profile.latitude || entry.longitude !== profile.longitude
+            || !entry.arome?.hours?.length || !entry.arpegeWeek?.days?.length || !entry.piaf?.values?.length) {
+            throw new Error('Les données principales de Terre Rouge sont incomplètes : publication annulée.');
+          }
+          NODE
+      - name: Générer Terre Rouge
+        run: node scripts/prepare-site.mjs --site=terre-rouge --state=.cache/weather-state/terre-rouge.json --url=https://meteo-terrerouge.github.io/
+      - uses: actions/cache/save@v6
+        with:
+          path: .cache/weather-state/terre-rouge.json
+          key: weather-published-v1-${{ github.run_id }}-${{ github.run_attempt }}
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: .cache/sites/terre-rouge/
+      - uses: actions/deploy-pages@v5
+        id: deployment
+      - name: Signaler les échecs de collecte après conservation des données valides
+        if: needs.collect.result == 'failure'
+        run: |
+          echo "::error::Une source a échoué. Les acquisitions réussies ont été conservées et publiées."
+          exit 1
