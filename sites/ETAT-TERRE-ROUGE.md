@@ -1,15 +1,41 @@
-# Collecte automatique autorisée le 23 octobre 2026 — v3.280
+# Collecte automatique active le 23 octobre 2026 — v3.280 publiée
 
 L’utilisateur a explicitement autorisé « Oui, active la collecte et la publication
-automatiques », par exception à la règle générale sans déploiement.
-Le workflow `refresh-terre-rouge.yml` est préparé : PIAF toutes les 5 min,
-prévisions chaque heure, publications sérialisées avec fusion par source,
-restauration des caches et des JSON publics. Compte/dépôt :
-`meteo-terrerouge/meteo-terrerouge.github.io`, exclusivement Terre Rouge.
-Validation : 382 tests passent hors restriction Windows des fichiers temporaires,
-71 tests `check:sites`, `check:pages` et `actionlint` passent.
-Activation et vérification publiques en cours ; compléter ce paragraphe avec
-le commit, les exécutions Actions et les dates réellement publiées.
+automatiques », par exception à la règle générale sans déploiement, pour Terre Rouge.
+Cette autorisation couvre la collecte et la publication récurrentes configurées ici.
+
+- Dépôt dédié : `meteo-terrerouge/meteo-terrerouge.github.io`, branche main.
+  Commit de mise en place `1753c07`, correction des deux formats d’extraction
+  des artefacts `607fca4`, collecte limitée aux sources affichées `7453836`.
+- Workflow `refresh-terre-rouge.yml`, id `394028127`, état GitHub actif.
+  PIAF programmé toutes les 5 min (minutes 3, 8, etc.) ; autres prévisions
+  à la minute 17 de chaque heure UTC. Les lancements GitHub peuvent être retardés.
+- Collectes indépendantes PIAF/prévisions, caches distincts, récupération de
+  l’ancien cache manuel et restauration durable depuis les JSON publics.
+  Fusion par source et cycle sous un verrou couvrant génération et déploiement :
+  un traitement long ne peut pas republier un PIAF plus ancien.
+- Panne partielle : conserver et publier les acquisitions réussies, puis signaler
+  l’échec dans Actions. Les créneaux PIAF absents restent explicitement inconnus.
+- Terre Rouge n’affiche aucun ensemble PEAROME. Leur collecte a donc été désactivée
+  dans ce seul profil : évite des appels inutilisés et le HTTP 404 d’un membre
+  sur l’ancien essai complet. PEAROME reste activé aux Tatins.
+- Validation finale : 384 tests passent hors restriction Windows des fichiers
+  temporaires ; 73 tests `check:sites` ; `check:pages` et `actionlint` passent.
+  Les tests du profil sont maintenant inclus dans l’import du dépôt dédié.
+- Vérifications réelles : cycle court PIAF `39956086398` réussi, collecte et
+  déploiement ; cycle prévisions `39956407323` réussi, collecte et déploiement.
+  L’ancien essai `39955649262` a été annulé pour libérer le traitement corrigé.
+  Ces premiers contrôles sont des lancements manuels du workflow automatique ;
+  aucun événement schedule encore observé au contrôle de 14 h 55. La définition
+  des deux horaires est bien présente sur main et le workflow GitHub est actif.
+- Contrôle HTTP public : v3.280 ; PIAF collecté à 14:45:32 Paris, cycle 14:35,
+  valide jusqu’à 17:35 ; AROME collecté à 14:49:52, run 06:00 UTC ; Open-Meteo
+  à 14:45:04 ; ARPEGE collecté à 14:44:41, run 06:00 UTC. AROME prévoit désormais
+  0,57 mm entre 16 h et 17 h, au lieu des anciens 1,15 mm. Ce PIAF prévoit zéro
+  sur cet intervalle : une divergence de prévisions, distincte de l’ancien PIAF expiré.
+- Aucune publication ni cadence Tatins modifiée. Aucun nouveau service local requis.
+  Les sources communes restent non commitées dans le dépôt de travail Tatins ;
+  le dépôt dédié contient les commits publiés. Les sections suivantes sont historiques.
 
 # Mise à jour locale du 23 octobre 2026 — v3.279, non publiée
 
