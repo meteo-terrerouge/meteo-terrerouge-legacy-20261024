@@ -52,6 +52,7 @@ export async function prepareSite({ id, output, entry = {}, dataMode, releaseNum
   await writeFile(path.join(target, 'runtime-config.js'), `window.METEO_RUNTIME_CONFIG = Object.freeze(${JSON.stringify(runtime, null, 2)});\n`);
   let html = await readFile(path.join(target, 'index.html'), 'utf8');
   html = html.replace(/app\.js\?v=\d+/, `app.js?v=${releaseNumber.replaceAll('.', '')}`);
+  html = html.replace(/style\.css\?v=\d+/, `style.css?v=${releaseNumber.replaceAll('.', '')}`);
   html = html.replaceAll('Météo les Tatins', profile.name).replaceAll('Les Tatins', profile.place)
     .replace(/\s*<a\b[^>]*class="admin-access"[^>]*>.*?<\/a>/g, '')
     .replace(/<script src="analytics.js\?v=4"><\/script>/, '')
