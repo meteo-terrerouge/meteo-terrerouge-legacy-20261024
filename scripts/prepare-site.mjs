@@ -64,14 +64,22 @@ export async function prepareSite({ id, output, entry = {}, dataMode, releaseNum
   if (id !== 'tatins') html = html.replace(/\s*<meta name="google-site-verification"[^>]*>/, '');
   if (!profile.features.nowcasting) {
     html = html.replace(/<p class="header-subtitle">.*?<\/p>/, '<p class="header-subtitle">Prévisions météo Météo-France à l’échelle kilométrique</p>')
-      .replace(/<meta name="description"[^>]*>/, `<meta name="description" content="Prévisions météo Météo-France pour ${profile.place} : températures, pluie et vent.">`)
+      .replace(/<meta name="description"[^>]*>/, `<meta name="description" content="Prévisions météo pour ${profile.place} jusqu’à 16 jours : températures, précipitations, nébulosité, vent et risque orageux.">`)
       .replace(/\s*<link rel="preconnect"[^>]*>/g, '')
       .replace(/<button id="horizon-nowcast-toggle"[\s\S]*?<\/button>/, '')
       .replace(/<nav class="header-info-links"[\s\S]*?<\/nav>/, '')
       .replace(/<a id="app-version"[^>]*>[\s\S]*?<\/a>/, '')
-      .replaceAll('Prévisions quotidiennes sur 7 jours', 'Prévisions quotidiennes sur 4 jours');
+      .replaceAll('Prévisions quotidiennes sur 7 jours', 'Prévisions quotidiennes sur 16 jours');
     // Keep the same DOM identifiers used by shared charts; hide the optional map.
     html = html.replace('id="nowcast-details"', 'id="nowcast-details" data-feature="nowcasting"');
+  }
+  if (profile.forecastLayout === 'daily-rows') {
+    html = html.replace('<body>', '<body class="forecast-rows-layout">')
+      .replace('<h2 id="three-hour-title">Dans les 3 h</h2>', '<h2 id="three-hour-title">Les 3 prochaines heures</h2>')
+      .replace('<div id="three-hour-summary" class="three-hour-summary" aria-live="polite"></div>', '<div id="three-hour-summary" class="three-hour-summary" aria-live="polite"></div><div id="piaf-three-hour-chart" aria-live="polite"></div>')
+      .replace(/(<section class="three-hour-overview"[^>]*>)([\s\S]*?)(<\/section>)/, (_, opening, content, closing) =>
+        opening + '<article class="forecast-day-row three-hour-card" aria-labelledby="three-hour-title">'
+        + content.replace('<div class="section-heading">', '<div class="forecast-day-header">') + '</article>' + closing);
   }
   await writeFile(path.join(target, 'index.html'), html);
   if (id !== 'tatins') {
@@ -97,7 +105,7 @@ export async function prepareSite({ id, output, entry = {}, dataMode, releaseNum
   const styleUrl = html.match(/href="(style\.css\?v=\d+)"/)?.[1];
   const appUrl = html.match(/src="(app\.js\?v=\d+)"/)?.[1];
   if (!styleUrl || !appUrl) throw new Error('Les ressources de la présentation GitHub Pages sont introuvables.');
-  const shell = ['./', 'index.html', `runtime-config.js?v=${releaseNumber}`, appUrl, styleUrl, `forecast-core.js?v=${releaseNumber}`, 'nowcast/engine.js', 'nowcast/map.js', 'manifest.webmanifest'];
+  const shell = ['./', 'index.html', `runtime-config.js?v=${releaseNumber}`, appUrl, styleUrl, `forecast-core.js?v=${releaseNumber}`, `daily-rows.js?v=${releaseNumber}`, 'nowcast/engine.js', 'nowcast/map.js', 'manifest.webmanifest'];
   const worker = `const prefix = ${JSON.stringify(prefix)};
 const cacheName = prefix + ${JSON.stringify(releaseNumber)};
 const shell = ${JSON.stringify(shell)}.map(p => new URL(p, self.registration.scope).href);

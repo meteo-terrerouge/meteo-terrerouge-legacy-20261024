@@ -6,6 +6,7 @@ import { siteProfile } from '../sites/profiles.mjs';
 import { createForecastCollectors } from '../weather/collectors.mjs';
 import { createWeatherHttpClient } from '../weather/http-client.mjs';
 import { sourceDue } from '../weather/state.mjs';
+import { collectOpenMeteo } from '../weather/open-meteo.mjs';
 
 export async function collectWeather({ profile, entry = {}, token, group = 'all', checkpoint = async () => {}, onRequest, collectors: injected }) {
   if (!['all', 'piaf', 'forecast'].includes(group)) throw new Error('Groupe de collecte inconnu.');
@@ -28,6 +29,7 @@ export async function collectWeather({ profile, entry = {}, token, group = 'all'
   const state = { done: 0, total: 0 };
   const errors = [];
   const jobs = [
+    ['openMeteo', 'openMeteo', () => { onRequest?.('openMeteo'); return injected ? api.buildOpenMeteo(profile) : collectOpenMeteo(profile); }],
     ['piaf', 'piaf', () => api.buildPiaf(profile.latitude, profile.longitude, state)],
     ['arome', 'arome', () => api.buildArome(profile.latitude, profile.longitude, state)],
     ['arpegeWeek', 'arpege', () => api.buildArpegeWeek(profile.latitude, profile.longitude, state, entry.arpegeWeek)],

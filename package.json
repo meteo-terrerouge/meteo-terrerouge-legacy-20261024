@@ -11,7 +11,7 @@
     "test": "node --test test/*.test.mjs",
     "collect:site": "node scripts/collect-weather.mjs",
     "build:site": "node scripts/prepare-site.mjs",
-    "check:sites": "node --check weather/collectors.mjs && node --check weather/state.mjs && node --check weather/http-client.mjs && node --check scripts/collect-weather.mjs && node --check scripts/prepare-site.mjs && node --check scripts/merge-weather-state.mjs && node --check public/forecast-core.js && node --test test/shared-sites.test.mjs",
+    "check:sites": "node --check weather/collectors.mjs && node --check weather/state.mjs && node --check weather/http-client.mjs && node --check weather/open-meteo.mjs && node --check scripts/collect-weather.mjs && node --check scripts/prepare-site.mjs && node --check scripts/merge-weather-state.mjs && node --check public/forecast-core.js && node --check public/daily-rows.js && node --test test/shared-sites.test.mjs test/daily-rows.test.mjs",
     "preview:sites": "node scripts/preview-sites.mjs"
   },
   "dependencies": {

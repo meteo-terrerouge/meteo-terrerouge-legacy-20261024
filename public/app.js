@@ -5,6 +5,12 @@ const runtimeConfig = window.METEO_RUNTIME_CONFIG && typeof window.METEO_RUNTIME
 const apiBaseUrl = new URL(runtimeConfig.apiBase || "./", document.baseURI);
 const siteProfile = { id: "tatins", place: "Les Tatins", latitude: 44.6538, longitude: 5.5995, ...runtimeConfig.site };
 const siteFeatures = { nowcasting: true, openMeteo: true, ...siteProfile.features };
+const dailyRowsLayout = siteProfile.forecastLayout === "daily-rows";
+let dailyRowsTools = null;
+const dailyChartStates = new Map();
+let dailyChartsResizeObserver = null;
+const dailyRowsReady = dailyRowsLayout ? import(new URL("daily-rows.js?v=" + encodeURIComponent(runtimeConfig.releaseNumber || "1"), document.currentScript?.src || document.baseURI).href)
+  .then(module => { dailyRowsTools = module; renderWeekForecast(); }) : null;
 const apiUrl = path => {
   const relative = String(path).replace(/^\/+/, "");
   if (runtimeConfig.dataMode === "static" && relative.startsWith("api/")) {
@@ -327,7 +333,7 @@ function forecastSourceControlsMarkup() {
   return '<div class="forecast-source-selector" aria-label="Source des prévisions"><button class="forecast-source-button' + (activeForecastSource === "meteofrance" ? " active" : "") + '" type="button" data-source="meteofrance" aria-pressed="' + (activeForecastSource === "meteofrance") + '"' + unavailable + '>Météo-France</button><button class="forecast-source-button' + (activeForecastSource === "openmeteo" ? " active" : "") + '" type="button" data-source="openmeteo" aria-pressed="' + (activeForecastSource === "openmeteo") + '">Open-Meteo</button><button class="forecast-source-button' + (activeForecastSource === "comparison" ? " active" : "") + '" type="button" data-source="comparison" aria-pressed="' + (activeForecastSource === "comparison") + '"' + unavailable + '>Synthèse</button></div>';
 }
 
-function forecastMetricControlsMarkup() {
+function forecastMetricControlsMarkup(opacities = metricOpacities) {
   const icons = {
     temperature: '<path d="M10 4a2 2 0 0 1 4 0v9.2a4 4 0 1 1-4 0V4Z"/><path d="M12 7v9"/>',
     rain: '<path d="M12 2.8C9.5 6.4 6.8 9.7 6.8 13.2a5.2 5.2 0 0 0 10.4 0C17.2 9.7 14.5 6.4 12 2.8Z"/>',
@@ -335,11 +341,15 @@ function forecastMetricControlsMarkup() {
     gust: '<path d="M3 6h14c4 0 4-5 .7-5-1.5 0-2.5.8-2.9 2M3 12h18M3 18h12"/><path d="m12 15 3 3-3 3"/>',
     cloudiness: '<path d="M5.5 18a4.5 4.5 0 0 1-.6-9A6.2 6.2 0 0 1 16.7 8a5 5 0 1 1 .8 10H5.5Z"/>'
   };
-  return '<div class="metric-controls-rail"><div class="forecast-metric-controls" aria-label="Courbes affichées">' + [{ key: "cloudiness", label: "Nébulosité" }, { key: "temperature", label: "Température" }, { key: "gust", label: "Rafales" }, { key: "wind", label: "Vent moyen" }, { key: "rain", label: "Précipitations" }].map(metric => '<button class="metric-opacity-control" type="button" data-metric-opacity="' + metric.key + '" aria-label="' + metric.label + '" aria-pressed="' + (metricOpacities[metric.key] > 0) + '" title="' + metric.label + '"><span class="metric-symbol" aria-hidden="true"><span class="metric-symbol-part metric-symbol-on-color"><svg viewBox="0 0 24 24">' + icons[metric.key] + '</svg></span><span class="metric-symbol-part metric-symbol-on-white"><svg viewBox="0 0 24 24">' + icons[metric.key] + '</svg></span></span></button>').join("") + '</div></div>';
+  const metrics = [{ key: "cloudiness", label: "Nébulosité" }, { key: "temperature", label: "Température" }, { key: "gust", label: "Rafales" }, { key: "wind", label: "Vent moyen" }, { key: "rain", label: "Précipitations" }];
+  return '<div class="metric-controls-rail"><div class="forecast-metric-controls" aria-label="Courbes affichées">' + metrics.map(metric => '<button class="metric-opacity-control" type="button" data-metric-opacity="' + metric.key + '" aria-label="' + metric.label + '" aria-pressed="' + (opacities[metric.key] > 0) + '" title="' + metric.label + '"><span class="metric-symbol" aria-hidden="true"><span class="metric-symbol-part metric-symbol-on-color"><svg viewBox="0 0 24 24">' + icons[metric.key] + '</svg></span><span class="metric-symbol-part metric-symbol-on-white"><svg viewBox="0 0 24 24">' + icons[metric.key] + '</svg></span></span></button>').join("") + '</div></div>';
 }
 
 function applyMetricOpacities() {
-  const section = $("panel-48h");
+  applyForecastMetricState($("panel-48h"), metricOpacities, metricOffsets);
+}
+
+function applyForecastMetricState(section, metricOpacities, metricOffsets) {
   if (!section) return;
   Object.entries(metricOpacities).forEach(([metric, value]) => {
     section.style.setProperty("--metric-opacity-" + metric, String(value / 100));
@@ -365,7 +375,11 @@ function bindForecastControlButtons() {
     renderActiveForecast();
     if (activeForecastSource === "openmeteo") ensureOpenMeteoEnsemble();
   });
-  document.querySelectorAll("[data-metric-opacity]").forEach(button => {
+  bindMetricControlButtons($("panel-48h"), metricOpacities, metricOffsets, applyMetricOpacities);
+}
+
+function bindMetricControlButtons(root, metricOpacities, metricOffsets, applyMetricOpacities) {
+  root.querySelectorAll("[data-metric-opacity]").forEach(button => {
     const metric = button.dataset.metricOpacity;
     let dragStartX = 0;
     let dragStartY = 0;
@@ -374,7 +388,7 @@ function bindForecastControlButtons() {
     let dragAxis = "";
     let dragged = false;
     const beginDrag = (clientX, clientY) => {
-      document.querySelectorAll("[data-metric-opacity]").forEach(candidate => candidate.style.zIndex = candidate === button ? "2" : "1");
+      root.querySelectorAll("[data-metric-opacity]").forEach(candidate => candidate.style.zIndex = candidate === button ? "2" : "1");
       dragStartX = clientX;
       dragStartY = clientY;
       dragStartOffset = metricOffsets[metric];
@@ -412,12 +426,12 @@ function bindForecastControlButtons() {
       const bounds = offsetBounds(button);
       let nextOffset = Math.max(bounds.minimum, Math.min(bounds.maximum, Math.round(dragStartOffset + movementY)));
       if (metric === "gust" && nextOffset > metricOffsets.wind) {
-        const windButton = document.querySelector('[data-metric-opacity="wind"]');
+        const windButton = root.querySelector('[data-metric-opacity="wind"]');
         const windBounds = offsetBounds(windButton);
         nextOffset = Math.min(nextOffset, windBounds.maximum);
         metricOffsets.wind = nextOffset;
       } else if (metric === "wind" && nextOffset < metricOffsets.gust) {
-        const gustButton = document.querySelector('[data-metric-opacity="gust"]');
+        const gustButton = root.querySelector('[data-metric-opacity="gust"]');
         const gustBounds = offsetBounds(gustButton);
         nextOffset = Math.max(nextOffset, gustBounds.minimum);
         metricOffsets.gust = nextOffset;
@@ -2643,7 +2657,96 @@ function renderTestingDailyForecast() {
   renderWeekApiLinks();
 }
 
+function alignDailyLegendSources(root) {
+  root.querySelectorAll('.day-chart-key').forEach(key => {
+    key.classList.remove('day-source-wrapped');
+    const source = key.querySelector('.day-source');
+    const first = [...key.children].find(child => child !== source && child.getBoundingClientRect().height > 0);
+    if (!source || !first) return;
+    const rect = source.getBoundingClientRect();
+    const lineHeight = parseFloat(getComputedStyle(source).lineHeight);
+    key.classList.toggle('day-source-wrapped', rect.top - first.getBoundingClientRect().top > 6 || rect.height > lineHeight * 1.5);
+  });
+}
+
 function renderWeekForecast() {
+  if (dailyRowsLayout) {
+    if (!dailyRowsTools) return;
+    const target = $("week-forecast");
+    dailyChartsResizeObserver?.disconnect();
+    dailyChartsResizeObserver = new ResizeObserver(entries => entries.forEach(entry => {
+      const width = Math.round(entry.contentRect.width);
+      if (width > 0 && Math.abs(width - (entry.target._dailyChartWidth || 0)) > 1) entry.target._redrawDailyChart?.();
+    }));
+    const stateForDate = date => {
+      if (!dailyChartStates.has(date)) dailyChartStates.set(date, dailyRowsTools.createDailyChartState());
+      return dailyChartStates.get(date);
+    };
+    const days = dailyRowsTools.buildDailyRows({ dashboard: latestForecastData || {}, week: latestMeteoFranceWeek,
+      now: appNow(), timezone: siteProfile.timezone, count: siteProfile.forecastDays || 16, sunTimesForDate: sunTimes });
+    const chartOptions = { timezone: siteProfile.timezone, iconMarkup: displayIcon, rainScale: dailyRowsTools.dailyRainScale(days),
+      backgroundForTime: time => daylightColor(time, new Date(time)) };
+    const piafTarget = $("piaf-three-hour-chart");
+    if (piafTarget) {
+      piafTarget._redrawDailyChart = () => {
+        const width = Math.max(200, piafTarget.clientWidth - 2);
+        piafTarget._dailyChartWidth = Math.round(piafTarget.clientWidth);
+        piafTarget.innerHTML = dailyRowsTools.piafChartMarkup(currentNowcast(), { ...chartOptions, now: appNow(), width,
+          dashboard: latestForecastData || {}, week: latestMeteoFranceWeek });
+        alignDailyLegendSources(piafTarget);
+        bindChartTooltips(piafTarget);
+      };
+      piafTarget._redrawDailyChart();
+      dailyChartsResizeObserver.observe(piafTarget);
+    }
+    target.innerHTML = dailyRowsTools.dailyRowsMarkup(days, { ...chartOptions, now: appNow(), stateForDate,
+      controlsMarkup: opacities => forecastMetricControlsMarkup(opacities) });
+    target.querySelectorAll("[data-day-date]").forEach(article => {
+      const state = stateForDate(article.dataset.dayDate);
+      const day = days.find(item => item.date === article.dataset.dayDate);
+      const scroll = article.querySelector(".day-chart-scroll");
+      let chartHeight = 260;
+      const apply = () => {
+        applyForecastMetricState(article, state.opacities, state.offsets);
+        article.querySelectorAll("[data-day-layer]").forEach(layer => {
+          const visible = state.opacities[layer.dataset.dayLayer] > 0;
+          layer.style.display = visible ? "" : "none";
+          layer.setAttribute("aria-hidden", String(!visible));
+          layer.querySelectorAll("[tabindex]").forEach(point => point.tabIndex = visible ? 0 : -1);
+        });
+        alignDailyLegendSources(article);
+      };
+      const redraw = () => {
+        const viewportWidth = Math.max(160, scroll.clientWidth);
+        const { width, height, canExpand } = dailyRowsTools.dailyChartSize(viewportWidth, state, day);
+        chartHeight = height;
+        scroll._dailyChartWidth = Math.round(viewportWidth);
+        const content = article.querySelector(".day-chart-content");
+        content.style.width = width + "px";
+        content.innerHTML = dailyRowsTools.dailyChartMarkup(day, { ...chartOptions, now: appNow(), state, width, viewportWidth });
+        const widthControl = article.querySelector(".day-width-control");
+        widthControl.hidden = !canExpand;
+        widthControl.querySelector("input").checked = state.showHourly;
+        apply();
+        bindChartTooltips(article);
+      };
+      scroll._redrawDailyChart = redraw;
+      bindMetricControlButtons(article, state.opacities, state.offsets, apply);
+      redraw();
+      dailyChartsResizeObserver.observe(scroll);
+      article.querySelector(".day-width-control input").onchange = event => { state.showHourly = event.target.checked; redraw(); };
+      article.querySelectorAll("[data-metric-opacity]").forEach(button => button.onkeydown = event => {
+        const metric = button.dataset.metricOpacity;
+        if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
+        event.preventDefault();
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight") state.opacities[metric] = Math.max(0, Math.min(100, state.opacities[metric] + (event.key === "ArrowRight" ? 10 : -10)));
+        else if (!["rain", "cloudiness"].includes(metric)) state.offsets[metric] = Math.max(-chartHeight / 2, Math.min(chartHeight / 2, state.offsets[metric] + (event.key === "ArrowDown" ? 10 : -10)));
+        apply();
+      });
+    });
+    bindChartTooltips();
+    return;
+  }
   renderTestingDailyForecast();
   return;
   const number = value => value != null && Number.isFinite(Number(value)) ? Number(value).toLocaleString("fr-FR", { maximumFractionDigits: 1 }) : "—";
@@ -3040,6 +3143,20 @@ async function loadMeteoFranceWeek() {
 }
 
 async function ensureWeekForecast() {
+  if (dailyRowsLayout && runtimeConfig.dataMode === "static") {
+    if (weekForecastPromise) return weekForecastPromise;
+    weekForecastPromise = (async () => {
+      await dailyRowsReady;
+      const payload = await json("api/week?lat=" + point.lat + "&lon=" + point.lon);
+      latestMeteoFranceWeek = payload.data || null;
+      renderWeekForecast();
+    })().catch(error => { weekForecastErrors.meteofrance = error.message; renderWeekForecast(); }).finally(() => {
+      weekForecastPromise = null;
+      clearTimeout(weekForecastRetryTimer);
+      weekForecastRetryTimer = setTimeout(ensureWeekForecast, 60000);
+    });
+    return weekForecastPromise;
+  }
   if (!siteFeatures.openMeteo) {
     if (weekForecastPromise) return weekForecastPromise;
     weekForecastPromise = loadMeteoFranceWeek().then(data => {
@@ -3145,6 +3262,7 @@ async function ensureWeekForecast() {
 }
 
 async function ensureOpenMeteoEnsemble() {
+  if (dailyRowsLayout && runtimeConfig.dataMode === "static") return null;
   if (!siteFeatures.openMeteo) return null;
   if (latestOpenMeteoEnsemble && Date.now() - latestOpenMeteoEnsemble.fetchedAt < 30 * 60000) return latestOpenMeteoEnsemble;
   if (openMeteoEnsemblePromise) return openMeteoEnsemblePromise;
@@ -4110,7 +4228,7 @@ function bindSharedHorizontalScroll(width, onScroll = () => {}) {
   }));
 }
 
-function bindChartTooltips() {
+function bindChartTooltips(root = document) {
   const tooltip = $("chart-tooltip");
   const show = (target, event) => {
     tooltip.textContent = target.dataset.tooltip;
@@ -4118,7 +4236,7 @@ function bindChartTooltips() {
     tooltip.style.left = Math.min(window.innerWidth - 260, Math.max(12, event.clientX + 14)) + "px";
     tooltip.style.top = Math.max(12, event.clientY - 82) + "px";
   };
-  document.querySelectorAll(".chart-point").forEach(point => {
+  root.querySelectorAll(".chart-point").forEach(point => {
     if (point.dataset.tooltipBound === "true") return;
     point.dataset.tooltipBound = "true";
     point.addEventListener("pointerenter", event => show(point, event));
@@ -4831,6 +4949,10 @@ function initializeNowcastMapBackground(mapRadiusKm) {
 
 function renderThreeHourSummary(forecast) {
   const summaryElement = $("three-hour-summary");
+  if (dailyRowsLayout) {
+    if (summaryElement) summaryElement.innerHTML = "";
+    return;
+  }
   const now = appNow();
   const { rainMessageSequence, rainValue, rainColorLevel, rainDetail, rainTrend, stormCombinedLevel, stormDetail, stormTrend, stormTrendDetail, stormEtaLabel, stormDurationLabel, stormEtaDetail, windValue, windLevel, windDetail, windTrendWithDetail, windColorLevel } = forecast;
   const riskTone = value => value >= 60 ? "high" : value >= 30 ? "medium" : value > 0 ? "low" : "none";
@@ -5161,12 +5283,13 @@ function applyDashboardPayload(payload) {
       : receivedData;
     dashboardSync = { status: payload.status, error: payload.error || null };
     latestForecastData = data;
+    if (dailyRowsLayout) renderWeekForecast();
     basicForecast = null;
     clearTimeout(nowcastExpiryTimer);
     if (!window.METEO_REPLAY && data?.nowcast?.validUntil > appNow()) {
       nowcastExpiryTimer = setTimeout(() => { renderActiveRain(); renderActiveForecast(); }, data.nowcast.validUntil - appNow() + 1);
     }
-    if (!latestWeekForecast?.days?.length && data?.openMeteo?.days?.length) {
+    if (!dailyRowsLayout && !latestWeekForecast?.days?.length && data?.openMeteo?.days?.length) {
       const detailedDays = normalizeDashboardOpenMeteoDays(data.openMeteo);
       latestWeekForecast = {
         fetchedAt: data.openMeteo.fetchedAt || Date.now(),

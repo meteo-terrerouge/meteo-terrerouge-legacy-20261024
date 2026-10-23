@@ -530,3 +530,41 @@
 20/10/2026 21:21 — v3.250 — Les profils communs reprennent la présentation GitHub Pages actuelle, avec la frise trois heures et les mêmes styles et pictogrammes.
 
 20/10/2026 22:13 — v3.251 — Périodes passées conservées en grisé ; « Orage possible » au point Terre Rouge et pluie PIAF dans la frise ; retrait d’About et du numéro de version de l’en-tête Terre Rouge.
+
+21/10/2026 20:50 — v3.252 — Terre Rouge : une ligne par jour avec graphiques de température, précipitations, nébulosité, vent et risque orageux, pictogrammes et affichage smartphone ; Open-Meteo prolonge les prévisions jusqu’à 16 jours.
+
+21/10/2026 21:21 — v3.253 — Terre Rouge : frise combinée par journée avec pictogrammes sur la courbe, commandes d’affichage, déplacement et transparence comme sur la frise 48 h, hauteur réglable ; température et précipitations seules visibles par défaut.
+
+21/10/2026 21:53 — v3.254 — Terre Rouge : commandes et pictogrammes réduits, informations au-dessus des graphiques, créneaux adaptés à la largeur sans défilement horizontal, journée limitée aux heures à venir et courbe PIAF sur trois heures.
+
+21/10/2026 22:09 — v3.255 — Terre Rouge : fondu jour/nuit continu comme sur la frise 48 h des Tatins, nébulosité en zone grisée sans ligne, horaires et pictogrammes alignés dans un en-tête fixe.
+
+21/10/2026 22:13 — v3.256 — Terre Rouge : pictogrammes météo agrandis et colonnes espacées pour leur lisibilité ; diagramme des précipitations ancré au bord inférieur du graphique.
+
+21/10/2026 22:16 — v3.257 — Terre Rouge : taille intermédiaire des pictogrammes météo et espace réduit entre leur rangée et les courbes.
+
+21/10/2026 22:18 — v3.258 — Terre Rouge : journée d’aujourd’hui affichée en entier, partie passée très fortement grisée jusqu’au repère de l’heure actuelle ; totaux sur la journée complète.
+
+21/10/2026 22:22 — v3.259 — Terre Rouge : suppression de la commande et de la courbe de risque d’orage ; signal orageux intégré uniquement au pictogramme météo du créneau concerné.
+
+21/10/2026 22:44 — v3.260 — Terre Rouge : pictogrammes agrandis de 15 %, pictogramme de fin de soirée conservé, frise 3 h avec températures, pictogrammes et pluie PIAF ; courbes prolongées jusqu’aux bords avec les données des jours voisins.
+
+21/10/2026 23:01 — v3.261 — Terre Rouge : retrait des textes d’aide et commentaires ajoutés aux graphiques, restauration du sous-titre d’origine et titre unique « Les 3 prochaines heures ».
+
+22/10/2026 12:32 — v3.262 — Terre Rouge : nuits comprimées selon le lever et le coucher du soleil, pictogramme de résumé quotidien, hauteur automatique adaptée à l’écran et réglage de l’échelle horizontale avec défilement.
+
+22/10/2026 19:39 — v3.263 — Terre Rouge : résumé avec minima, maxima et goutte de pluie comme aux Tatins ; option horaire réservée aux écrans trop étroits et limitée à la largeur utile, avec pictogrammes nocturnes espacés uniformément.
+
+22/10/2026 19:51 — v3.264 — Terre Rouge : séparations horaires atténuées, seuil horaire assoupli, retrait du titre général et de Réinitialiser, sources et dates de mise à jour dans les résumés, option « Afficher le détail heure par heure ».
+
+22/10/2026 20:06 — v3.265 — Terre Rouge : frise des trois prochaines heures encadrée comme les journées, titre à l’intérieur ; sources et dernières mises à jour intégrées aux légendes des graphiques.
+
+22/10/2026 20:13 — v3.266 — Terre Rouge : colonnes de même largeur aux transitions jour/nuit, sources alignées à gauche lorsqu’elles passent sous la légende et cumuls de pluie nuls masqués.
+22/10/2026 20:42 — v3.267 — Terre Rouge : pluie affichée par intervalle source réel, parts estimées signalées, nature déterministe des courbes précisée et repère Tendance à partir de J+7.
+22/10/2026 21:10 — v3.268 — Terre Rouge : pluie sans traits à zéro, gouttes sous 0,1 mm, cumuls et durées lisibles, intensités sur une échelle commune, Open-Meteo explicitement agrégé et interpolation temporelle conservée aux transitions jour/nuit et aux bords.
+22/10/2026 21:32 — v3.269 — Terre Rouge : étiquettes de pluie sans durée, mot « gouttes » sous 0,1 mm et hauteur minimale de 5 px pour rendre les faibles précipitations visibles.
+22/10/2026 21:38 — v3.270 — Terre Rouge : mention Tendance dans l’en-tête dès J+8, retrait des classifications techniques et transitions progressives de l’axe temporel pour éviter les fausses cassures des courbes jour/nuit.
+22/10/2026 21:48 — v3.271 — Terre Rouge : âge des collectes API affiché en heures et minutes, date et heure exactes conservées au survol, unités mm ajoutées aux étiquettes de pluie lorsque la place le permet.
+22/10/2026 22:09 — v3.272 — Terre Rouge : collecte neige AROME, ARPEGE et Open-Meteo, pictogrammes neige et pluie/neige, cumuls de neige fraîche estimés en cm et diagramme unique des précipitations sur une échelle commune en équivalent eau.
+23/10/2026 02:48 — v3.273 — Terre Rouge : neige arrondie au centimètre sans signe environ, faibles quantités indiquées « < 1 cm », aucune étiquette neige en mm ; pluie liquide conservée en mm.
+23/10/2026 02:55 — v3.274 — Terre Rouge : les traces neigeuses infimes dans la pluie ne déclenchent plus les pictogrammes ni les cumuls neige visibles ; données brutes conservées et trace précisée au survol.

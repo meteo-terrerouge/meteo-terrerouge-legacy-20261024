@@ -69,8 +69,66 @@ dernières données publiées devront également servir de restauration durable.
 Le profil Tatins utilise pour l'instant l'API du serveur actuel. Son radar,
 PAM, sa foudre, le nowcasting, l'administration et la cadence PIAF actuelle
 restent côté serveur. Le serveur utilise déjà le module de collecteurs commun.
-Le profil Terre Rouge lit uniquement ses JSON statiques et n'appelle ni le
-serveur des Tatins ni Open-Meteo.
+Le profil Terre Rouge lit uniquement ses JSON statiques. Sa collecte récupère
+Open-Meteo sans clé privée, jusqu’à 16 jours, avec un renouvellement horaire
+et conservation du dernier résultat valide en cas d’échec. Le navigateur ne
+contacte pas Open-Meteo ni le serveur des Tatins pour ces prévisions.
+
+La vue `daily-rows` affiche une frise combinée par jour, sans défilement
+horizontal. Les informations et le réglage de hauteur se placent au-dessus.
+Le pas affiché dépend uniquement de la largeur disponible : les courbes de
+température gardent les points horaires disponibles, les annotations et
+pictogrammes sont espacés et la pluie est cumulée par créneau affiché sans
+perte de volume. Aucune adaptation au pas natif des modèles n’est activée.
+Pour aujourd’hui, la frise conserve la journée entière, de minuit à minuit.
+Un voile fortement grisé et désaturé couvre les heures écoulées, y compris les
+pictogrammes et la pluie, jusqu’au repère de l’heure actuelle exacte. Les totaux
+portent sur la journée complète ; les données manquantes restent absentes.
+Température et précipitations sont seules visibles
+par défaut ; les pictogrammes météo restent dans une rangée fixe, alignés sous
+les horaires, indépendamment des déplacements des courbes. Leurs colonnes
+réservent au moins 64 pixels pour rendre lisibles les pictogrammes agrandis.
+Les pictogrammes mesurent 69 pixels (+15 %). Pour aujourd’hui, un pictogramme
+« Ce soir » reste visible au-dessus du voile grisé lorsqu’aucun créneau futur
+ne peut plus accueillir un pictogramme, même dans la dernière minute.
+Les barres de pluie partent du bord inférieur du graphique, sans marge horaire.
+Les bords utilisent les points acquis des jours voisins pour prolonger les
+courbes jusqu’aux limites du graphique. La pluie des marges ne rentre pas dans
+le total du jour. Les prolongements sans données restent vides.
+Le fond jour/nuit
+reprend le fondu continu et les couleurs de la frise 48 h des Tatins. La
+nébulosité s’affiche en zone grisée translucide, sans ligne ni marqueurs.
+Les commandes de la frise 48 h sont partagées avec cette vue : clic pour
+afficher/masquer, glissement vertical pour déplacer les courbes et horizontal
+pour la transparence. Vent, rafales et nébulosité sont activables. Le signal
+orageux est intégré au pictogramme météo, sans commande ni courbe distincte.
+Chaque journée dispose aussi d’un réglage de hauteur de 240 à 480 pixels et
+d’une réinitialisation. Les réglages sont conservés à l’actualisation
+des données pendant la session ; les Tatins gardent leur présentation.
+AROME puis ARPEGE ont priorité sur les échéances acquises ; Open-Meteo
+complète les champs absents et prolonge la série. Ses modèles sont choisis
+automatiquement par le service pour atteindre la portée de 16 jours.
+À partir du huitième jour, les lignes sont marquées « Tendance ».
+
+Une frise indépendante couvre les trois prochaines heures : pluie PIAF au
+pas source de cinq minutes, courbe de température et pictogrammes météo.
+Température et nébulosité suivent les mêmes priorités de sources que les jours.
+Les pictogrammes pluvieux utilisent uniquement l’intensité PIAF disponible.
+Elle affiche l’intensité en mm/h et le cumul restant sur la période réellement
+couverte. Les échéances expirées sont retirées, les lacunes ne sont pas reliées
+et aucune donnée n’est prolongée au-delà de sa validité. Sans PIAF valide, elle
+signale l’indisponibilité dans l’accessibilité et l’infobulle de sa légende tout
+en gardant température et ciel s’ils sont acquis. Aucun paragraphe d’aide n’est
+ajouté sous les graphiques. La rubrique porte un seul titre « Les 3 prochaines
+heures » et le sous-titre d’origine du site est conservé.
+
+Les cumuls ARPEGE sur plusieurs heures sont répartis selon le recouvrement
+de chaque heure, sans addition aux pluies AROME ou Open-Meteo de la même
+période. Les champs continus ARPEGE sont interpolés entre points disponibles
+(écart maximal de six heures). Les codes Open-Meteo 95, 96 et 99 indiquent
+un orage possible : ils ne sont pas transformés en probabilité chiffrée.
+Les champs inconnus restent absents des graphiques. Les journées partielles
+et leurs cumuls incomplets sont signalés.
 
 Avant activation en continu : choisir les dépôts/URL et la publication des
 données, garantir une restauration durable hors du cache Actions, séparer les

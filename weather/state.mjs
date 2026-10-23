@@ -1,4 +1,4 @@
-export const refreshPolicy = Object.freeze({ piaf: 4 * 60000, arome: 3600000, pearome: 3 * 3600000, ensemble: 6 * 3600000, arpegeWeek: 6 * 3600000, vigilance: 30 * 60000 });
+export const refreshPolicy = Object.freeze({ piaf: 4 * 60000, arome: 3600000, pearome: 3 * 3600000, ensemble: 6 * 3600000, arpegeWeek: 6 * 3600000, vigilance: 30 * 60000, openMeteo: 3600000 });
 export const sourceNames = Object.freeze(Object.keys(refreshPolicy));
 export function sourceDue(name, entry, now = Date.now()) {
   const value = entry[name];
@@ -29,9 +29,10 @@ export function mergeWeatherState(previous = {}, incoming = {}) {
 export function publicWeatherFiles(profile, entry = {}, releaseNumber = '') {
   const data = { latitude: profile.latitude, longitude: profile.longitude };
   for (const key of ['piaf', 'arome', 'pearome', 'ensemble', 'vigilance']) data[key] = entry[key] || null;
+  if (profile.features.openMeteo) data.openMeteo = entry.openMeteo || null;
   const week = entry.arpegeWeek || null;
   return {
-    'dashboard.json': { status: data.arome || data.piaf ? 'ready' : 'loading', stage: 'Prévisions Météo-France', data },
+    'dashboard.json': { status: data.arome || data.piaf || data.openMeteo ? 'ready' : 'loading', stage: 'Prévisions météo', data },
     'week.json': { status: week?.days?.length ? 'ready' : 'loading', ensemble: { status: 'disabled' }, history: [], data: week },
     'config.json': { latitude: profile.latitude, longitude: profile.longitude, releaseNumber, news: null }
   };

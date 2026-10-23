@@ -1,5 +1,6 @@
 import { fromArrayBuffer } from "geotiff";
 import { mapPool } from "../async-pool.mjs";
+import { nativeSnowAmounts } from './precipitation.mjs';
 
 // Shared by the live server and scheduled static-site collection. No server startup or secrets on import.
 export const vigilancePhenomena = {
@@ -284,6 +285,14 @@ async function buildArome(lat, lon, state) {
   }
   if (!selected || !run) throw new Error("Aucun run AROME complet et cohérent n’est disponible.");
   selected.lightning = selectRun(ids, "AVERAGE_LIGHTNING_STRIKE_DENSITY_OVER_3HOURS__GROUND_OR_WATER_SURFACE", run);
+  const snowCoverage = selectRun(ids, 'TOTAL_SNOW_PRECIPITATION__GROUND_OR_WATER_SURFACE', run, '_PT1H');
+  let snowLeads = new Set();
+  if (snowCoverage) {
+    try {
+      snowLeads = new Set(coverageTimeSeconds(await mfText(describeCoverageUrl(aromeWcs, snowCoverage.id), aromeApiKey, 'AROME échéances neige')));
+      state.done++;
+    } catch (error) { recordApiEvent('error', 'AROME échéances neige', error.message); }
+  }
 
   const firstLeadHour = Math.max(0, Math.floor((Date.now() - run.getTime()) / 3600000));
   const lastLeadHour = Math.min(51, firstLeadHour + 47);
@@ -306,7 +315,7 @@ async function buildArome(lat, lon, state) {
   const leadHours = commonLeadHours(["temperature", "rain", "u", "v", "gust", "cloud"]).slice(0, 48);
   if (!leadHours.length) throw new Error("Aucune échéance horaire AROME commune aux paramètres de la frise.");
   const lightningRequestCount = lightningLeads ? leadHours.filter(lead => lightningLeads.has(lead * 3600)).length : 0;
-  state.total = state.done + leadHours.length * 6 + lightningRequestCount;
+  state.total = state.done + leadHours.length * 6 + lightningRequestCount + leadHours.filter(lead => snowLeads.has(lead * 3600)).length;
 
   const getPoint = async (coverage, leadHour, height, label) => {
     const xml = await mfText(pointUrl(aromeWcs, coverage.id, lat, lon, leadHour * 3600, height), aromeApiKey, label);
@@ -324,7 +333,11 @@ async function buildArome(lat, lon, state) {
         getPoint(selected.gust, lead, 10, `AROME rafale H+${lead}`),
         getPoint(selected.cloud, lead, null, `AROME nuages H+${lead}`)
       ]);
-      return { leadHour: lead, temperature, rain, u, v, gust, cloud: cloudValue <= 1 ? cloudValue * 100 : cloudValue };
+      const snow = snowLeads.has(lead * 3600)
+        ? await getPoint(snowCoverage, lead, null, `AROME neige H+${lead}`).catch(error => {
+          recordApiEvent('error', `AROME neige H+${lead}`, error.message); return null;
+        }) : null;
+      return { leadHour: lead, temperature, rain, snow, u, v, gust, cloud: cloudValue <= 1 ? cloudValue * 100 : cloudValue };
     } catch (error) {
       recordApiEvent("error", `AROME échéance H+${lead} ignorée`, error.message);
       return null;
@@ -363,6 +376,7 @@ async function buildArome(lat, lon, state) {
       windGust: Math.round(hourly.gust * 3.6),
       cloudCover: Math.round(cloud),
       rain: Math.round(rain * 100) / 100,
+      ...nativeSnowAmounts(rain, hourly.snow),
       lightningDensity,
       lightningRate: Math.round(lightningRate * 10000) / 10000,
       stormRain3h: Math.round(rain3h * 100) / 100,
@@ -397,6 +411,14 @@ async function buildArpegeDeterministic(lat, lon, state) {
     cape: selectRun(ids, "CONVECTIVE_AVAILABLE_POTENTIAL_ENERGY_MAX__GROUND_OR_WATER_SURFACE", run),
     convectiveRain: selectRun(ids, "CONVECTIVE_PRECIPITATION__GROUND_OR_WATER_SURFACE", run, "_PT3H")
   };
+  const snowCoverage = selectRun(ids, 'TOTAL_SNOW_PRECIPITATION__GROUND_OR_WATER_SURFACE', run, '_PT3H');
+  let snowLeads = new Set();
+  if (snowCoverage) {
+    try {
+      snowLeads = new Set(coverageTimeSeconds(await mfText(describeCoverageUrl(arpegeWcs, snowCoverage.id), arpegeApiKey, 'ARPEGE échéances neige', 2, 'arpege')));
+      state.done++;
+    } catch (error) { recordApiEvent('error', 'ARPEGE échéances neige', error.message); }
+  }
 
   const [temperatureDescription, rainDescription] = await Promise.all([
     mfText(describeCoverageUrl(arpegeWcs, selected.temperature.id), arpegeApiKey, "ARPEGE échéances", 2, "arpege"),
@@ -415,7 +437,7 @@ async function buildArpegeDeterministic(lat, lon, state) {
   });
   if (!sampledLeads.length || !rainLeads.length) throw new Error("Échéances ARPEGE quatre jours indisponibles.");
   const hasConvectiveRain = Boolean(stormFields.convectiveRain);
-  state.total = 3 + sampledLeads.length * (6 + Number(hasConvectiveRain)) + dates.length;
+  state.total = state.done + sampledLeads.length * (6 + Number(hasConvectiveRain)) + dates.length + sampledLeads.filter(lead => snowLeads.has(lead)).length;
 
   const getPoint = async (coverage, lead, height, label) => {
     const xml = await mfText(pointUrl(arpegeWcs, coverage.id, lat, lon, lead, height), arpegeApiKey, label, 2, "arpege");
@@ -423,14 +445,17 @@ async function buildArpegeDeterministic(lat, lon, state) {
     return tupleValue(xml);
   };
   const samples = await mapPool(sampledLeads, 8, async lead => {
-    const [temperatureValue, u, v, gust, cloudValue, periodRain, convectiveRain] = await Promise.all([
+    const [temperatureValue, u, v, gust, cloudValue, periodRain, convectiveRain, snow] = await Promise.all([
       getPoint(selected.temperature, lead, 2, `ARPEGE température +${lead / 3600} h`),
       getPoint(selected.u, lead, 10, `ARPEGE vent U +${lead / 3600} h`),
       getPoint(selected.v, lead, 10, `ARPEGE vent V +${lead / 3600} h`),
       getPoint(selected.gust, lead, 10, `ARPEGE rafales +${lead / 3600} h`),
       getPoint(selected.cloud, lead, null, `ARPEGE nébulosité +${lead / 3600} h`),
       getPoint(selected.rainPeriod, lead, null, `ARPEGE pluie 3 h +${lead / 3600} h`),
-      stormFields.convectiveRain ? getPoint(stormFields.convectiveRain, lead, null, `ARPEGE pluie convective +${lead / 3600} h`).catch(() => null) : null
+      stormFields.convectiveRain ? getPoint(stormFields.convectiveRain, lead, null, `ARPEGE pluie convective +${lead / 3600} h`).catch(() => null) : null,
+      snowLeads.has(lead) ? getPoint(snowCoverage, lead, null, `ARPEGE neige +${lead / 3600} h`).catch(error => {
+        recordApiEvent('error', `ARPEGE neige +${lead / 3600} h`, error.message); return null;
+      }) : null
     ]);
     const cloud = Math.max(0, Math.min(100, cloudValue <= 1 ? cloudValue * 100 : cloudValue));
     const validTime = run.getTime() + lead * 1000;
@@ -449,6 +474,8 @@ async function buildArpegeDeterministic(lat, lon, state) {
       rainIntervalStart: rainPeriodStart,
       rainIntervalEnd: validTime,
       periodRain: Math.max(0, periodRain) * futureRainFraction,
+      ...nativeSnowAmounts(Math.max(0, periodRain) * futureRainFraction,
+        Number.isFinite(snow) ? snow * futureRainFraction : null),
       lead,
       cape: null,
       convectiveRain: Number.isFinite(convectiveRain) ? Math.max(0, convectiveRain) : null,
@@ -592,6 +619,10 @@ async function buildArpegeDeterministic(lat, lon, state) {
     rainIntervalStart: new Date(sample.rainIntervalStart).toISOString(),
     rainIntervalEnd: new Date(sample.rainIntervalEnd).toISOString(),
     rain: sample.periodRain,
+    liquidRain: sample.liquidRain,
+    snowfall: sample.snowfall,
+    snowWaterEquivalent: sample.snowWaterEquivalent,
+    snowfallMethod: sample.snowfallMethod,
     temperature: sample.temperature,
     windSpeed: sample.windSpeed,
     windDirection: sample.windDirection,
