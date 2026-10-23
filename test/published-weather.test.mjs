@@ -66,3 +66,36 @@ test('aucune donnée publique des Tatins ni de coordonnées différentes ne peut
   await assert.rejects(restorePublishedWeather({ profile, fetchImpl: fetchOther }), /coordonnées/);
   await assert.rejects(restorePublishedWeather({ profile: siteProfile('tatins'), fetchImpl: () => { throw Error('ne doit pas être appelé'); } }), /réservée/);
 });
+
+
+test('la fusion accepte une acquisition extraite directement ou plusieurs sous-dossiers d’artefacts', async () => {
+  const { mkdir, mkdtemp, writeFile, readFile, rm } = await import('node:fs/promises');
+  const { execFile } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  const { fileURLToPath } = await import('node:url');
+  const path = await import('node:path');
+  const cache = fileURLToPath(new URL('../.cache/', import.meta.url));
+  await mkdir(cache, { recursive: true });
+  const root = await mkdtemp(path.join(cache, 'weather-artifact-test-'));
+  const run = promisify(execFile);
+  const script = fileURLToPath(new URL('../scripts/merge-weather-state.mjs', import.meta.url));
+  try {
+    const single = path.join(root, 'single'), multiple = path.join(root, 'multiple');
+    const output = path.join(root, 'state');
+    await mkdir(single);
+    await writeFile(path.join(single, 'terre-rouge.json'), JSON.stringify(state(100)));
+    await run(process.execPath, [script, single, output]);
+    const newer = state(200);
+    for (const group of ['piaf', 'forecast']) {
+      const directory = path.join(multiple, 'weather-update-' + group);
+      await mkdir(directory, { recursive: true });
+      await writeFile(path.join(directory, 'terre-rouge.json'), JSON.stringify(group === 'piaf' ? newer : state(150)));
+    }
+    await run(process.execPath, [script, multiple, output]);
+    for (const group of ['piaf', 'forecast']) await run(process.execPath, [script, path.join(multiple, 'weather-update-' + group), output]);
+    assert.deepEqual(JSON.parse(await readFile(path.join(output, 'terre-rouge.json'), 'utf8')), newer);
+  } finally {
+    assert.ok(root.startsWith(path.join(cache, 'weather-artifact-test-')));
+    await rm(root, { recursive: true, force: true });
+  }
+});

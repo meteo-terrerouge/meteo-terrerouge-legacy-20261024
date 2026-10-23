@@ -130,8 +130,10 @@ jobs:
             if [ -d "$directory" ]; then node scripts/merge-weather-state.mjs "$directory" .cache/weather-state; fi
           done
           node scripts/restore-published-weather.mjs --state=.cache/weather-state/terre-rouge.json
+          # A single artifact is extracted directly; several use subdirectories.
+          node scripts/merge-weather-state.mjs .cache/downloaded .cache/weather-state
           for directory in .cache/downloaded/weather-update-*; do
-            node scripts/merge-weather-state.mjs "$directory" .cache/weather-state
+            if [ -d "$directory" ]; then node scripts/merge-weather-state.mjs "$directory" .cache/weather-state; fi
           done
       - name: Vérifier les données avant publication
         run: |
