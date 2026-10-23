@@ -1,3 +1,21 @@
+# Survol sans date — v3.295
+
+- Correction demandée : retirer la date et l’heure entre parenthèses du survol
+  des indicateurs 3 h et journées. Conserver la source et l’âge en minutes/heures.
+- Exemple : « PIAF : il y a 12 min ». Indicateur non interactif et seuils inchangés.
+
+# Publication vérifiée — v3.294
+
+- Commit Terre Rouge 30c02f8cef10c9265f884ec0116430c965b18933 ; exécution
+  40014635470 : collecte PIAF et déploiement réussis.
+- Navigateur public : « Pas de pluie » sans partiel ; survol par source avec âge
+  (ex. AROME il y a 49 min), date exacte conservée ; PIAF acquis à 21:51.
+- Vérification serveur pour la suite : SSH nicklaus@nicolas.sindelar.fr accessible,
+  service meteo-boulc actif, environ 76 Go libres, Node système v18.19.1.
+  sudo non interactif refuse : mot de passe nécessaire. Aucune modification serveur.
+- La fiabilisation de la cadence de collecte demeure à faire, indépendamment
+  de la correction des libellés. Ne pas présenter la relance manuelle comme une solution.
+
 # Correction du survol et de la frise — 23 octobre 2026, v3.294
 
 - L’indicateur non interactif affiche pour chaque source l’âge en minutes ou heures,

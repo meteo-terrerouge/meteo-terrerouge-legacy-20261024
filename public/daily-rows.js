@@ -648,16 +648,15 @@ export function dailyPeriodSummary(day, start, end, now = Date.now()) {
     available: rains.length > 0 || samples.some(sample => ['temperature', 'cloudCover', 'windSpeed'].some(key => valid(sample[key]))) };
 }
 
-export function dailyDataUpdateTitle(day, now = Date.now(), timezone = 'Europe/Paris') {
+export function dailyDataUpdateTitle(day, now = Date.now()) {
   const labels = { green: 'Données récentes', orange: 'Actualisation ancienne', red: 'Données anciennes ou indisponibles' };
-  const format = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: timezone });
   const updates = (day.sourceUpdates || []).map(source => {
     const stamp = typeof source.fetchedAt === 'string' ? Date.parse(source.fetchedAt) : source.fetchedAt;
     if (!valid(stamp) || stamp <= 0) return source.name + ' : date inconnue';
     const minutes = Math.floor((now - stamp) / 60000);
     const age = minutes < 0 ? 'date future' : minutes === 0 ? 'à l’instant'
       : minutes < 60 ? 'il y a ' + minutes + ' min' : 'il y a ' + Math.floor(minutes / 60) + ' h ' + minutes % 60 + ' min';
-    return source.name + ' : ' + age + ' (' + format.format(stamp) + ')';
+    return source.name + ' : ' + age;
   });
   return [labels[dailyDataUpdateStatus(day, now)], ...updates].join('\n');
 }

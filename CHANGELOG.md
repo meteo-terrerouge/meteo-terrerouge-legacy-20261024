@@ -588,3 +588,4 @@
 23/10/2026 21:01 — v3.292 — Essai local Terre Rouge : pictogrammes solaires sans flèches avec mentions Levé/Couché et heures, saint du jour Nominis et titre agrandi.
 23/10/2026 21:12 — v3.293 — Terre Rouge : publication des cartes quotidiennes responsive sur seize jours avec Tendance et courbe dédiée, frise 3 h simplifiée, indicateurs d’actualisation et nouvel en-tête avec soleil et Lune ; suppression du saint du jour. Collecte automatique conservée.
 23/10/2026 21:49 — v3.294 — Terre Rouge : retour de l’âge des données en minutes et heures au survol des indicateurs ; suppression de « partiel » après « Pas de pluie » dans la frise 3 h.
+23/10/2026 21:57 — v3.295 — Terre Rouge : survol des indicateurs avec uniquement la source et l’âge des données ; suppression de la date et de l’heure entre parenthèses.

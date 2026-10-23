@@ -1269,11 +1269,11 @@ test('la fraîcheur PIAF emploie ses seuils courts et les jours lointains placen
   assert.match(html, /<h3>Aujourd’hui <time datetime="2026-10-21">21 oct\.<\/time><\/h3>/);
 });
 
-test('le survol d’actualisation affiche minutes, heures et date sans rajeunir les données', async () => {
+test('le survol d’actualisation affiche uniquement minutes et heures sans date ni parenthèses', async () => {
   const { dailyDataUpdateTitle } = await import('../public/daily-rows.js');
   const day = fetchedAt => ({ sourceUpdates: [{ name: 'PIAF', fetchedAt }] });
-  assert.ok(dailyDataUpdateTitle(day(now - 12 * 60000), now).includes('PIAF : il y a 12 min ('));
-  assert.ok(dailyDataUpdateTitle(day(now - 135 * 60000), now).includes('PIAF : il y a 2 h 15 min ('));
+  assert.equal(dailyDataUpdateTitle(day(now - 12 * 60000), now), 'Actualisation ancienne\nPIAF : il y a 12 min');
+  assert.equal(dailyDataUpdateTitle(day(now - 135 * 60000), now), 'Données anciennes ou indisponibles\nPIAF : il y a 2 h 15 min');
   assert.ok(dailyDataUpdateTitle(day(new Date(now - HOUR).toISOString()), now).includes('il y a 1 h 0 min'));
   assert.ok(dailyDataUpdateTitle(day(now - 12 * 60000), now + 60000).includes('il y a 13 min'));
   assert.ok(dailyDataUpdateTitle(day(null), now).includes('date inconnue'));
