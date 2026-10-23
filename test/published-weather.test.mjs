@@ -99,3 +99,17 @@ test('la fusion accepte une acquisition extraite directement ou plusieurs sous-d
     await rm(root, { recursive: true, force: true });
   }
 });
+
+
+test('Terre Rouge renouvelle les sources affichées sans requérir les ensembles PEAROME inutilisés', async () => {
+  const { collectWeather } = await import('../scripts/collect-weather.mjs');
+  const calls = [];
+  const record = name => async () => { calls.push(name); return { fetchedAt: Date.now() }; };
+  const result = await collectWeather({ profile: siteProfile('terre-rouge'), group: 'forecast', collectors: {
+    buildOpenMeteo: record('openMeteo'), buildArome: record('arome'), buildArpegeWeek: record('arpege'),
+    buildVigilance: record('vigilance'), buildPearome: record('pearome'), buildPearomeEnsemble: record('ensemble')
+  } });
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(calls, ['openMeteo', 'arome', 'arpege', 'vigilance']);
+  assert.equal(siteProfile('tatins').features.pearome, true);
+});

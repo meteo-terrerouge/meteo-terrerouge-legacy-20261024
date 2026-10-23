@@ -141,7 +141,9 @@ un lancement ponctuel et sa planification minimale est de 5 min.
 Le workflow `refresh-terre-rouge.yml` prépare une collecte PIAF toutes les 5 min
 (minutes 3, 8, etc.) et les autres prévisions chaque heure à la minute 17 UTC.
 Les deux collectes sont indépendantes ; les durées de cache restent propres
-à chaque source (AROME et Open-Meteo 1 h, ARPEGE 6 h, etc.). La planification
+à chaque source (AROME et Open-Meteo 1 h, ARPEGE 6 h, etc.). Les ensembles
+PEAROME ne sont pas acquis pour les frises Terre Rouge, qui ne les affichent
+pas ; leur collecte reste activée aux Tatins. La planification
 GitHub peut démarrer en retard ; ce n'est pas une garantie à la minute.
 La publication fusionne les dernières acquisitions par cycle et date de
 collecte, sous un verrou couvrant fusion, génération et déploiement. Un
