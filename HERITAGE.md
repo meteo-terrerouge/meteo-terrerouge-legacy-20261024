@@ -1,11 +1,12 @@
-# Héritage du moteur commun — préparation
+# Héritage automatique — préparation
 
-- Paramètres du lieu : site.json.
-- Source : nicklausFR/bulletin-local-meteo-france, commit c912dcad33c68b8c62d26f127edebcd0d4549384.
-- Aperçu local construit et contrôlé avec les JSON publics ; aucune collecte privée.
-- Le nouveau workflow manuel produit uniquement un artefact, sans publier de site.
-- Ce workflow sera disponible après intégration sur la branche par défaut.
-- Les workflows de collecte et de publication actuels sont inchangés.
-- La bascule des collectes planifiées vers le moteur commun restera une étape séparée.
+- Configuration du lieu : site.json.
+- Source suivie : nicklausFR/bulletin-local-meteo-france, branche main.
+- Chaque exécution récupère et teste main, puis réutilise le même commit pour collecter et publier.
+- Une modification du moteur est reprise automatiquement à la prochaine exécution programmée.
+- Les cadences PIAF et prévisions, les caches, la restauration publique et le verrou de publication sont conservés.
+- La fusion garde la dernière acquisition de chaque source.
+- Le mode manuel cached vérifie le raccordement sans nouvelle collecte ; publish reste désactivé par défaut et interdit hors de main.
+- Cette branche n'est pas intégrée : le site de production reste sur son fonctionnement actuel.
 
-Validation : titre et coordonnées conservés, seize cartes, aucun pictogramme manquant, aucune erreur JavaScript ni débordement à la largeur contrôlée.
+La fusion de cette PR activera le suivi automatique lors des prochaines exécutions planifiées. Aucun déploiement n'est effectué pendant la préparation.

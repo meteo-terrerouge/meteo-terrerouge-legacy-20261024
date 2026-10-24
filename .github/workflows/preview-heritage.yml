@@ -9,9 +9,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Construire depuis la version validée du moteur commun
+      - name: Construire depuis la branche main du moteur commun
         id: bulletin
-        uses: nicklausFR/bulletin-local-meteo-france@c912dcad33c68b8c62d26f127edebcd0d4549384
+        uses: nicklausFR/bulletin-local-meteo-france@main
         with:
           profile: site.json
           state: .cache/inheritance-preview/terre-rouge.json
