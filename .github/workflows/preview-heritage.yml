@@ -1,0 +1,35 @@
+name: Aperçu du moteur commun
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construire depuis la version validée du moteur commun
+        id: bulletin
+        uses: nicklausFR/bulletin-local-meteo-france@c912dcad33c68b8c62d26f127edebcd0d4549384
+        with:
+          profile: site.json
+          state: .cache/inheritance-preview/terre-rouge.json
+          collect: 'false'
+      - name: Vérifier que les données publiques ont été reprises
+        env:
+          BULLETIN_DIRECTORY: ${{ steps.bulletin.outputs.site-directory }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFile } from 'node:fs/promises';
+          import path from 'node:path';
+          const payload = JSON.parse(await readFile(path.join(process.env.BULLETIN_DIRECTORY, 'data/dashboard.json'), 'utf8'));
+          if (payload.data.latitude !== 44.632186 || payload.data.longitude !== 5.631626) throw new Error('Coordonnées incorrectes.');
+          if (!payload.data.arome && !payload.data.openMeteo) throw new Error('Prévisions publiques indisponibles.');
+          NODE
+      - name: Fournir uniquement un aperçu téléchargeable
+        uses: actions/upload-artifact@v4
+        with:
+          name: terre-rouge-heritage-preview
+          path: ${{ steps.bulletin.outputs.site-directory }}
+          include-hidden-files: true

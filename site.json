@@ -1,0 +1,12 @@
+{
+  "id": "terre-rouge",
+  "name": "Météo Terre Rouge",
+  "place": "Terre Rouge",
+  "headingPrefix": "Météo Boulc",
+  "latitude": 44.632186,
+  "longitude": 5.631626,
+  "headerAltitude": 1155,
+  "department": "26",
+  "timezone": "Europe/Paris",
+  "publicUrl": "https://meteo-terrerouge.github.io/"
+}
