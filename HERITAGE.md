@@ -10,3 +10,5 @@
 - Cette branche n'est pas intégrée : le site de production reste sur son fonctionnement actuel.
 
 La fusion de cette PR activera le suivi automatique lors des prochaines exécutions planifiées. Aucun déploiement n'est effectué pendant la préparation.
+
+Validation GitHub Actions : exécution 40098032146 réussie sur cette branche en mode cached ; le job publish a été ignoré. Les fichiers de l'artefact sont identiques à ceux du moteur commun.

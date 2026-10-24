@@ -180,6 +180,7 @@ jobs:
         with:
           path: .cache/weather-state/terre-rouge.json
           key: weather-published-v1-${{ github.run_id }}-${{ github.run_attempt }}
+      - uses: actions/configure-pages@v4
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ${{ steps.bulletin.outputs.site-directory }}
