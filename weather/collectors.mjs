@@ -205,7 +205,7 @@ export function ensembleInterval(values, scale = 1) {
   };
 }
 
-export function createForecastCollectors({ mfText, mfArrayBuffer, recordApiEvent = () => {}, savePersisted = async () => {}, cacheExpired, aromeWcs, arpegeWcs, piafWcs, pearomeWcs, pearpegeWcs, vigilanceUrl, aromeApiKey, arpegeApiKey, piafApiKey, pearomeApiKey, pearpegeApiKey, vigilanceToken, vigilanceDepartment = "26", aromeMinimumDisplayHours = 42, aromeLightningRateThreshold = .01, aromeStormRain3hThreshold = .1, piafVersion = 3, arpegeWeekVersion = 23, arpegeWeekTtl = 21600000, pearpegeWeekEnabled = false, pearpegeMembers = 35, pearomeMembers = 25, pearomeConcurrency = 4, pearpegeConcurrency = 1 }) {
+export function createForecastCollectors({ mfText, mfArrayBuffer, recordApiEvent = () => {}, savePersisted = async () => {}, cacheExpired, aromeWcs, arpegeWcs, piafWcs, pearomeWcs, pearpegeWcs, vigilanceUrl, aromeApiKey, arpegeApiKey, piafApiKey, pearomeApiKey, pearpegeApiKey, vigilanceToken, vigilanceDepartment = null, aromeMinimumDisplayHours = 42, aromeLightningRateThreshold = .01, aromeStormRain3hThreshold = .1, piafVersion = 3, arpegeWeekVersion = 23, arpegeWeekTtl = 21600000, pearpegeWeekEnabled = false, pearpegeMembers = 35, pearomeMembers = 25, pearomeConcurrency = 4, pearpegeConcurrency = 1 }) {
 async function buildPiaf(lat, lon, state) {
   setStage(state, "PIAF · pluie à 5 minutes", 37);
   const capabilities = await mfText(`${piafWcs}/GetCapabilities?service=WCS&version=2.0.1`, piafApiKey, "PIAF", 2, "piaf");

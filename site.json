@@ -8,5 +8,6 @@
   "headerAltitude": 1155,
   "department": "26",
   "timezone": "Europe/Paris",
-  "publicUrl": "https://meteo-terrerouge.github.io/"
+  "publicUrl": "https://meteo-terrerouge.github.io/",
+  "meteoTokenSecret": "METEO_FRANCE_API_KEY_TERRE_ROUGE"
 }

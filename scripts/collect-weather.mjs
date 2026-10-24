@@ -2,13 +2,14 @@ import { realpathSync } from "node:fs";
 import { mkdir, readFile, writeFile, rename } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { siteProfile } from '../sites/profiles.mjs';
+import { readSiteProfile } from '../sites/profiles.mjs';
 import { createForecastCollectors } from '../weather/collectors.mjs';
 import { createWeatherHttpClient } from '../weather/http-client.mjs';
 import { sourceDue } from '../weather/state.mjs';
 import { collectOpenMeteo } from '../weather/open-meteo.mjs';
 
 export async function collectWeather({ profile, entry = {}, token, group = 'all', checkpoint = async () => {}, onRequest, collectors: injected }) {
+  if (!Number.isFinite(profile.latitude) || Math.abs(profile.latitude) > 90 || !Number.isFinite(profile.longitude) || Math.abs(profile.longitude) > 180) throw new Error('Les coordonnées du lieu doivent être renseignées avant la collecte.');
   if (!['all', 'piaf', 'forecast'].includes(group)) throw new Error('Groupe de collecte inconnu.');
   if (entry.siteId && (entry.siteId !== profile.id || entry.latitude !== profile.latitude || entry.longitude !== profile.longitude)) throw new Error('Le cache appartient à un autre lieu.');
   entry = { ...entry, siteId: profile.id, latitude: profile.latitude, longitude: profile.longitude };
@@ -38,6 +39,7 @@ export async function collectWeather({ profile, entry = {}, token, group = 'all'
     ['vigilance', 'vigilance', () => api.buildVigilance()]
   ];
   for (const [name, feature, run] of jobs) {
+    if (name === 'vigilance' && !profile.department) continue;
     if ((group === 'piaf' && name !== 'piaf') || (group === 'forecast' && name === 'piaf') || !profile.features[feature] || !sourceDue(name, entry)) continue;
     if (name === 'ensemble' && !entry.pearome) continue;
     try {
@@ -51,7 +53,7 @@ export async function collectWeather({ profile, entry = {}, token, group = 'all'
 
 async function main() {
   const arg = (name, fallback) => process.argv.find(v => v.startsWith(`--${name}=`))?.slice(name.length + 3) || fallback;
-  const profile = siteProfile(arg('site', 'terre-rouge'));
+  const profile = await readSiteProfile(arg('profile'));
   const input = path.resolve(arg('state', `.cache/weather/${profile.id}.json`));
   const output = path.resolve(arg('output', `.cache/weather-updates/${profile.id}.json`));
   const previous = await readFile(input, 'utf8').then(JSON.parse).catch(error => { if (error.code === 'ENOENT') return {}; throw error; });

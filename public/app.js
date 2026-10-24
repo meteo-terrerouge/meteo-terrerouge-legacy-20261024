@@ -3,7 +3,7 @@ const runtimeConfig = window.METEO_RUNTIME_CONFIG && typeof window.METEO_RUNTIME
   ? window.METEO_RUNTIME_CONFIG
   : {};
 const apiBaseUrl = new URL(runtimeConfig.apiBase || "./", document.baseURI);
-const siteProfile = { id: "tatins", place: "Les Tatins", latitude: 44.6538, longitude: 5.5995, ...runtimeConfig.site };
+const siteProfile = { id: "local", place: "", latitude: null, longitude: null, ...runtimeConfig.site };
 const siteFeatures = { nowcasting: true, openMeteo: true, ...siteProfile.features };
 const dailyRowsLayout = siteProfile.forecastLayout === "daily-rows";
 let dailyRowsTools = null;
@@ -649,27 +649,12 @@ function vigilanceSlotIcons(alerts) {
     const level = levels[alert.colorId] || "jaune";
     const period = alert.start && alert.end ? " · Du " + dateTimeFormat.format(new Date(alert.start)) + " au " + dateTimeFormat.format(new Date(alert.end)) : "";
     const description = "Vigilance " + level + " " + alert.label + period;
-    return '<a class="daily-vigilance-badge" href="https://vigilance.meteofrance.fr/fr/drome" target="_blank" rel="noopener noreferrer" data-level="' + level + '" aria-label="' + escapeText(description + " · Consulter Météo-France (nouvel onglet)") + '" title="' + escapeText(description) + '"><strong>DRÔME</strong><span class="daily-vigilance-icon type-' + alert.phenomenonId + '" data-level="' + level + '" aria-hidden="true"><i></i></span></a>';
+    return '<a class="daily-vigilance-badge" href="https://vigilance.meteofrance.fr/fr" target="_blank" rel="noopener noreferrer" data-level="' + level + '" aria-label="' + escapeText(description + " · Consulter Météo-France (nouvel onglet)") + '" title="' + escapeText(description) + '"><strong>Vigilance</strong><span class="daily-vigilance-icon type-' + alert.phenomenonId + '" data-level="' + level + '" aria-hidden="true"><i></i></span></a>';
   }).join("") + "</span>";
 }
 
-const eclipsePeak = new Date("2026-08-12T20:23:00+02:00").getTime();
-const eclipseWindow = { start: new Date("2026-08-12T19:20:00+02:00").getTime(), end: new Date("2026-08-12T21:20:00+02:00").getTime() };
-function isEclipsePeakSlot(date, duration = 3600000) {
-  const start = date.getTime();
-  return start <= eclipsePeak && eclipsePeak < start + duration;
-}
-
-function eclipseOverlayMarkup(timelineStart, timelineEnd, timelineWidth) {
-  const start = Math.max(timelineStart, eclipseWindow.start);
-  const end = Math.min(timelineEnd, eclipseWindow.end);
-  if (end <= start) return "";
-  const duration = timelineEnd - timelineStart;
-  const left = (start - timelineStart) / duration * timelineWidth;
-  const overlayWidth = (end - start) / duration * timelineWidth;
-  const peak = Math.max(0, Math.min(100, (eclipsePeak - start) / (end - start) * 100));
-  return '<div class="eclipse-timeline-wash" style="left:' + left.toFixed(2) + 'px;width:' + overlayWidth.toFixed(2) + 'px;--eclipse-peak:' + peak.toFixed(2) + '%" title="Éclipse solaire · maximum vers 20 h 23"></div>';
-}
+function isEclipsePeakSlot() { return false; }
+function eclipseOverlayMarkup() { return ""; }
 
 
 function compactMinutesLabel(minutes) {
@@ -2190,6 +2175,120 @@ const periodMetricPictogram = (kind, step, label, sources) => {
   return '<span class="week-metric-pictogram ' + kind + ' chart-point" tabindex="0" role="img" aria-label="' + escapeText(accessibleLabel) + '" data-tooltip="' + escapeText(sourceTooltip) + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + periodMetricIcons[kind] + '</svg><span class="week-metric-scale" aria-hidden="true">' + scale + '</span></span>';
 };
 
+const periodMetricRow = (pictogram, valueMarkup, description, extraClass = "") => '<div class="week-metric-row' + (extraClass ? " " + extraClass : "") + '"><dt>' + pictogram + '</dt><dd>' + (valueMarkup ? '<span class="week-metric-number">(' + valueMarkup + ')</span>' : '') + '</dd>' + (description ? '<p class="week-metric-description">' + escapeText(description) + '</p>' : '') + '</div>';
+
+function periodSourceDetails(sources, key) {
+  const format = (value, digits = 1) => Number(value).toLocaleString("fr-FR", { maximumFractionDigits: digits });
+  return sources.filter(source => source[key] != null).map(source => {
+    let detail;
+    if (key === "rain") {
+      detail = (source.rain > 0 && source.rain < .1 ? "< 0,1" : format(source.rain)) + " mm";
+      if (source.probability != null) detail += " · " + format(source.probability, 0) + " %";
+      if (source.snowfall > 0) detail += " · " + (Math.round(source.snowfall) || "< 1") + " cm de neige";
+      if (source.completeRain === false) detail += " · couverture partielle";
+      if (source.estimated) detail += " · estimation au prorata";
+    } else if (key === "storm") detail = source.storm ? "orage possible" : "pas d’orage";
+    else detail = format(source[key], 0) + (key === "cloudCover" ? " %" : " km/h");
+    const trendKey = { cloudCover: "cloud", windSpeed: "wind", windGust: "gust" }[key] || key;
+    const values = key === "rain" ? source.intervals?.map(interval => interval.rain * 3600000 / (interval.end - interval.start))
+      : source.samples?.filter(sample => sample.stamp >= source.begin && sample.stamp < source.end).map(sample => sample[key]).filter(value => value != null);
+    const threshold = { cloudCover: 15, windSpeed: 5, windGust: 8, rain: .2, storm: .34 }[key] || 0;
+    const trend = source.trends?.[trendKey] || backgroundTrendArrow(values || [], threshold);
+    return source.name + " : " + detail + " " + trend;
+  });
+}
+
+function forecastPeriodDetailsMarkup({ cloud = null, rain = null, rainLabel, wind = null, gust = null, directionValue = null,
+  hasStorm = null, weatherCode = null, showers = false, hideRain = false, probabilitySummary = rainProbabilitySummary([]),
+  rainDisagreement = false, rainTiming, slotKey, sources = [], stormLevel = 3, snowfall = null, liquidRain = null }) {
+  const format = (value, digits = 1) => value != null && Number.isFinite(Number(value)) ? Number(value).toLocaleString("fr-FR", { maximumFractionDigits: digits }) : "—";
+  const rainRangeText = rain > 0 && rain < .1 ? "< 0,1" : format(rain);
+  const precipitationText = rainLabel ?? rainRangeText + " mm";
+  const rainProbability = probabilitySummary.average;
+  const windRangeText = format(wind, 0), gustRangeText = format(gust, 0);
+  const cloudSources = periodSourceDetails(sources, "cloudCover"), rainSources = periodSourceDetails(sources, "rain");
+  const windSources = periodSourceDetails(sources, "windSpeed"), gustSources = periodSourceDetails(sources, "windGust"), stormSources = periodSourceDetails(sources, "storm");
+  const activeSources = sources.filter(source => source.storm).map(source => source.name);
+  const stormSourceLabel = activeSources.length > 1 ? activeSources.slice(0, -1).join(", ") + " et " + activeSources.at(-1) : (activeSources[0] || "la source disponible") + " seulement";
+  const direction = directionValue == null ? "" : '<span class="daily-period-wind-arrow" style="transform:rotate(' + directionValue + 'deg)" aria-hidden="true">↑</span>';
+  const rainStep = rainPictogramStep(rain), windStep = meanWindIntensityLevel(wind), gustStep = gustIntensityLevel(gust), stormStep = hasStorm ? stormLevel : 0;
+  const metric = (kind, value, step, label, sourceDetails) => value == null ? '<span class="day-detail-unavailable">—</span>' : periodMetricPictogram(kind, step, label, sourceDetails);
+  const skyDescription = cloud == null ? "Nébulosité indisponible." : conciseSkySummary(cloud);
+  const quantityBand = value => value < 1 ? "très faible" : value < 5 ? "faible" : value < 15 ? "modérée" : value < 30 ? "forte" : "très forte";
+  const quantitySummary = "en quantité " + quantityBand(rain);
+  const periodNoun = slotKey === "morning" ? "matinée" : slotKey === "afternoon" ? "après-midi" : slotKey === "evening" ? "soirée" : "nuit";
+  const timingSummary = rainTiming === "start" ? "en début de " + periodNoun
+    : rainTiming === "middle" ? "au milieu de " + periodNoun
+    : rainTiming === "end" ? "en fin de " + periodNoun : "";
+  const pluralRain = showers && !hasStorm;
+  const likelihood = (pluralRain ? {
+    "Prévue": "",
+    "Très probable": " très probables",
+    "Probable": " probables",
+    "Possible": " possibles",
+    "Envisagée": " envisagées",
+    "Peu probable": " peu probables",
+    "Très peu probable": " très peu probables",
+    "Incertain": " incertaines",
+    "À confirmer": " à confirmer"
+  } : {
+    "Prévue": "",
+    "Très probable": " très probable",
+    "Probable": " probable",
+    "Possible": " possible",
+    "Envisagée": " envisagée",
+    "Peu probable": " peu probable",
+    "Très peu probable": " très peu probable",
+    "Incertain": " incertaine",
+    "À confirmer": " à confirmer"
+  })[probabilitySummary.text] ?? "";
+  const rainSubject = hasStorm ? "Pluie orageuse" : pluralRain ? "Averses" : "Pluie";
+  const disagreementSummary = rainSubject + likelihood + (timingSummary ? " " + timingSummary + "," : "") + " " + quantitySummary + ".";
+  // La synthèse reste qualitative. Les valeurs exactes restent dans le
+  // pictogramme et son détail accessible.
+  const rainDescription = rain == null ? "Précipitations indisponibles." : snowfall > 0 ? (liquidRain > 0 ? "Pluie et neige." : "Neige.") : hideRain ? "" : rainDisagreement
+    ? disagreementSummary
+    : conciseRainSummary(rain, [], [], showers, hasStorm, probabilitySummary) || "Pas de pluie.";
+  const windDescription = wind == null && gust == null ? "Vent indisponible." : conciseWindSummary(wind == null ? [] : [wind], gust == null ? [] : [gust], [], [], directionValue == null ? [] : [directionValue]);
+  const cloudDetail = periodMetricRow(metric("cloud", cloud, cloudCoverBand(cloud), "Nébulosité " + format(cloud, 0) + " %", cloudSources), format(cloud, 0) + " %", skyDescription);
+  const rainKind = showers ? "showers" : "rain";
+  const showerPlus = showers ? '<span class="week-shower-plus" aria-hidden="true">+</span>' : "";
+  const rainPictogramLabel = "Précipitations " + precipitationText + (rainProbability != null ? " · probabilité " + format(rainProbability, 0) + " %" : "");
+  const rainPictogram = '<span class="week-rain-pictogram">' + metric(rainKind, rain, rainStep, rainPictogramLabel, rainSources) + showerPlus + '</span>';
+  const rainDetail = periodMetricRow(rainPictogram, escapeText(precipitationText), rainDescription, "week-rain-row");
+  const windDetail = '<div class="week-wind-group"><div class="week-grouped-metric-line"><dt>' + metric("wind", wind, windStep, "Vent " + windRangeText + " km/h", windSources) + '</dt><dd><span class="week-metric-number">(' + direction + escapeText(windRangeText) + ' km/h)</span></dd></div><div class="week-grouped-metric-line"><dt>' + metric("gust", gust, gustStep, "Rafales " + gustRangeText + " km/h", gustSources) + '</dt><dd><span class="week-metric-number">(' + escapeText(gustRangeText) + ' km/h)</span></dd></div><p class="week-metric-description">' + escapeText(windDescription) + '</p></div>';
+  const stormDescription = hasStorm == null ? "Prévision d’orage indisponible." : hasStorm
+    ? Number(weatherCode) >= 96 ? "Phénomène orageux violent possible selon " + stormSourceLabel + "." : "Orage possible selon " + stormSourceLabel + "."
+    : "Pas d’orage.";
+  const stormDetail = periodMetricRow(metric("storm", hasStorm, stormStep, hasStorm ? Number(weatherCode) >= 96 ? "Phénomène violent possible" : "Orage possible" : "Pas d’orage", stormSources), "", stormDescription, "daily-period-storm-detail");
+  return '<dl>' + cloudDetail + rainDetail + windDetail + stormDetail + '</dl>';
+}
+
+function forecastPeriodSummaryText(period) {
+  const format = value => Number(value).toLocaleString("fr-FR", { maximumFractionDigits: 1 });
+    if (!period) return "";
+    const rain = Math.max(0, Number(period.precipitationSum) || 0);
+    const probability = Math.max(0, Number(period.precipitationProbabilityMax) || 0);
+    const gust = Math.max(0, Number(period.windGustMax) || 0);
+    const parts = [];
+    if (period.storm) parts.push(Number(period.weatherCode) >= 96 ? "Orage violent possible" : "Orage possible");
+    else if (rain >= 5) parts.push(format(rain) + " mm de pluie");
+    else if (probability >= 70) parts.push("Pluie probable");
+    const gustLevel = gustIntensityLevel(gust);
+    if (gustLevel >= 3) parts.push(shortTermGustLabel(gustLevel));
+    return parts.join(" · ");
+}
+
+function forecastPeriodHighlights({ storm, gust, sources = [] }) {
+  const format = value => Number(value).toLocaleString("fr-FR", { maximumFractionDigits: 0 });
+  const gustSources = periodSourceDetails(sources, "windGust"), stormSources = periodSourceDetails(sources, "storm");
+  const hazard = [storm ? stormSignalPictogram(stormSources.join("\n"), "daily-hazard-symbol storm") : "",
+    gustIntensityLevel(gust) >= 3 ? '<span class="daily-hazard-symbol wind chart-point" tabindex="0" role="img" aria-label="Vent fort" data-tooltip="' + escapeText(gustSources.join("\n")) + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h11c3 0 3-4 0-4-1.2 0-2 .6-2.4 1.4M3 12h16c3.2 0 3.2 4.5 0 4.5-1.3 0-2.2-.7-2.5-1.6M3 16h8"/></svg></span>' : ""].join("");
+  const hazardMarkup = hazard ? '<span class="daily-period-hazards">' + hazard + '</span>' : "";
+  const gustVolume = gust >= 50 ? '<span class="daily-period-gust-volume" role="img" aria-label="Rafales ' + escapeText(format(gust) + " kilomètres par heure") + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + periodMetricIcons.gust + '</svg><strong>' + escapeText(format(gust)) + ' km/h</strong></span>' : "";
+  return { hazardMarkup, gustVolume };
+}
+
 function renderTestingDailyForecast() {
   const target = $("week-forecast");
   if (!target) return;
@@ -2206,26 +2305,6 @@ function renderTestingDailyForecast() {
     const weekday = weekDayFormat.format(dateFromKey(day.date));
     return weekday.charAt(0).toUpperCase() + weekday.slice(1);
   };
-  const weatherDescription = period => {
-    if (!period) return "";
-    const rain = Math.max(0, Number(period.precipitationSum) || 0);
-    const probability = Math.max(0, Number(period.precipitationProbabilityMax) || 0);
-    const gust = Math.max(0, Number(period.windGustMax) || 0);
-    const parts = [];
-    if (period.storm) parts.push(Number(period.weatherCode) >= 96 ? "Orage violent possible" : "Orage possible");
-    else if (rain >= 5) parts.push(format(rain) + " mm de pluie");
-    else if (probability >= 70) parts.push("Pluie probable");
-    const gustLevel = gustIntensityLevel(gust);
-    if (gustLevel >= 3) parts.push(shortTermGustLabel(gustLevel));
-    return parts.join(" · ");
-  };
-  const hazardPictogram = (kind, detail) => kind === "storm"
-    ? stormSignalPictogram(detail, "daily-hazard-symbol storm")
-    : '<span class="daily-hazard-symbol wind chart-point" tabindex="0" role="img" aria-label="Vent fort" data-tooltip="' + escapeText(detail) + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h11c3 0 3-4 0-4-1.2 0-2 .6-2.4 1.4M3 12h16c3.2 0 3.2 4.5 0 4.5-1.3 0-2.2-.7-2.5-1.6M3 16h8"/></svg></span>';
-  const periodCloudStep = value => cloudCoverBand(value);
-  const periodWindStep = meanWindIntensityLevel;
-  const periodGustStep = gustIntensityLevel;
-  const periodMetricRow = (pictogram, valueMarkup, description, extraClass = "") => '<div class="week-metric-row' + (extraClass ? " " + extraClass : "") + '"><dt>' + pictogram + '</dt><dd>' + (valueMarkup ? '<span class="week-metric-number">(' + valueMarkup + ')</span>' : '') + '</dd>' + (description ? '<p class="week-metric-description">' + escapeText(description) + '</p>' : '') + '</div>';
   const slotDateKey = (dateKey, slot) => shiftForecastDateKey(dateKey, slot.dayOffset);
   const meteoFranceRainForPeriod = (dateKey, slot) => {
     const periods = (latestForecastData?.pearome?.hours || []).filter(item => {
@@ -2473,101 +2552,29 @@ function renderTestingDailyForecast() {
     const gust = weekWeightedValue(openMeteoGust, meteoFranceGustValue);
     const gustRangeText = format(gust, 0);
     const openMeteoTrends = period?.backgroundTrends || {};
-    const meteoFranceRainProbability = meteoFranceRain?.probability != null && meteoFranceRain.probability !== "" && Number.isFinite(Number(meteoFranceRain.probability))
-      ? " · " + format(meteoFranceRain.probability, 0) + " %"
-      : "";
-    const rainSources = [
-      hasOpenMeteoPeriod ? "Open-Meteo : " + rainAmountText(openMeteoRain) + " mm · " + format(period.precipitationProbabilityMax, 0) + " % " + (openMeteoTrends.rain || "→") : "",
-      meteoFranceRainAmount != null ? "Météo-France : " + rainAmountText(meteoFranceRainAmount) + " mm" + meteoFranceRainProbability + " " + (meteoFranceRain.backgroundTrend || "→") : ""
-    ];
-    const windSources = [
-      hasOpenMeteoPeriod ? "Open-Meteo : " + format(openMeteoWind, 0) + " km/h " + (openMeteoTrends.wind || "→") : "",
-      meteoFranceWindValue != null ? "Météo-France : " + format(meteoFranceWindValue, 0) + " km/h " + (meteoFranceWind.windBackgroundTrend || "→") : ""
-    ];
-    const gustSources = [
-      hasOpenMeteoPeriod ? "Open-Meteo : " + format(openMeteoGust, 0) + " km/h " + (openMeteoTrends.gust || "→") : "",
-      meteoFranceGustValue != null ? "Météo-France : " + format(meteoFranceGustValue, 0) + " km/h " + (meteoFranceWind.gustBackgroundTrend || "→") : ""
-    ];
-    const stormSources = [
-      hasOpenMeteoPeriod ? "Open-Meteo : " + (hasOpenMeteoStorm ? "orage possible" : "pas d’orage") + " " + (openMeteoTrends.storm || "→") : "",
-      hasMeteoFranceDay ? "Météo-France : " + (hasMeteoFranceStorm ? "orage possible" : "pas d’orage") + " " + (meteoFranceStorm?.backgroundTrend || "→") : ""
-    ];
-    const hazard = [
-      hasStorm
-        ? hazardPictogram("storm", stormSources.filter(Boolean).join("\n")) : "",
-      gustIntensityLevel(gust) >= 3
-        ? hazardPictogram("wind", gustSources.filter(Boolean).join("\n")) : ""
-    ].join("");
-    const rainStep = rainPictogramStep(rain);
-    const windStep = periodWindStep(wind);
-    const gustStep = periodGustStep(gust);
+    const sourcePeriods = [
+      hasOpenMeteoPeriod ? { name: "Open-Meteo", rain: openMeteoRain, probability: period.precipitationProbabilityMax,
+        cloudCover: period.cloudCover, windSpeed: openMeteoWind, windGust: openMeteoGust, storm: hasOpenMeteoStorm, trends: openMeteoTrends } : null,
+      { name: "Météo-France", rain: meteoFranceRainAmount, probability: meteoFranceRain?.probability,
+        cloudCover: meteoFranceWind?.cloudCover, windSpeed: meteoFranceWindValue, windGust: meteoFranceGustValue,
+        storm: hasMeteoFranceDay ? hasMeteoFranceStorm : null,
+        trends: { rain: meteoFranceRain?.backgroundTrend, wind: meteoFranceWind?.windBackgroundTrend,
+          gust: meteoFranceWind?.gustBackgroundTrend, storm: meteoFranceStorm?.backgroundTrend } }
+    ].filter(Boolean);
+    const rainSources = periodSourceDetails(sourcePeriods, "rain");
     const stormRisk = weekStormRisk(dateKey);
     const stormStep = hasStorm ? Math.max(3, stormRisk.level) : 0;
-    const activeStormSources = [
-      hasOpenMeteoStorm ? "Open-Meteo" : "",
-      hasMeteoFranceStorm ? "Météo-France" : ""
-    ].filter(Boolean);
-    const stormSourceLabel = activeStormSources.length > 1 ? activeStormSources.slice(0, -1).join(", ") + " et " + activeStormSources.at(-1) : activeStormSources[0] + " seulement";
     const rainVolume = !hideRain && rain >= .1
       ? '<span class="daily-period-rain-volume" role="img" aria-label="Cumul de pluie ' + escapeText(rainAmountText(rain) + " millimètres") + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8C9.5 6.4 6.8 9.7 6.8 13.2a5.2 5.2 0 0 0 10.4 0C17.2 9.7 14.5 6.4 12 2.8Z"/></svg><strong>' + escapeText(rainRangeText) + ' mm</strong></span>'
       : "";
-    // Le rappel chiffré du créneau garde son seuil historique de 50 km/h :
-    // il informe sur la valeur sans dépendre du niveau qualitatif recalibré.
-    const gustVolume = gust >= 50
-      ? '<span class="daily-period-gust-volume" role="img" aria-label="Rafales ' + escapeText(format(gust, 0) + " kilomètres par heure") + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + periodMetricIcons.gust + '</svg><strong>' + escapeText(gustRangeText) + ' km/h</strong></span>'
-      : "";
-    const notable = weatherDescription({ ...(period || {}), precipitationSum: hideRain ? 0 : rain, precipitationProbabilityMax: hideRain ? 0 : rainProbability, storm: hasStorm });
+    const { hazardMarkup, gustVolume } = forecastPeriodHighlights({ storm: hasStorm, gust, sources: sourcePeriods });
+    const notable = forecastPeriodSummaryText({ ...(period || {}), precipitationSum: hideRain ? 0 : rain, precipitationProbabilityMax: hideRain ? 0 : rainProbability, storm: hasStorm });
     const notableMarkup = notable ? '<span class="daily-period-copy">' + escapeText(notable) + '</span>' : "";
     const showers = (Number(period?.weatherCode) >= 80 && Number(period?.weatherCode) <= 82) || hasStorm;
-    const skyDescription = conciseSkySummary(cloud);
-    const quantityBand = value => value < 1 ? "très faible" : value < 5 ? "faible" : value < 15 ? "modérée" : value < 30 ? "forte" : "très forte";
-    const quantitySummary = "en quantité " + quantityBand(rain);
-    const periodNoun = slot.key === "morning" ? "matinée" : slot.key === "afternoon" ? "après-midi" : slot.key === "evening" ? "soirée" : "nuit";
-    const timingSummary = period?.rainTiming === "start" ? "en début de " + periodNoun
-      : period?.rainTiming === "middle" ? "au milieu de " + periodNoun
-      : period?.rainTiming === "end" ? "en fin de " + periodNoun : "";
-    const pluralRain = showers && !hasStorm;
-    const likelihood = (pluralRain ? {
-      "Prévue": "",
-      "Très probable": " très probables",
-      "Probable": " probables",
-      "Possible": " possibles",
-      "Envisagée": " envisagées",
-      "Peu probable": " peu probables",
-      "Très peu probable": " très peu probables",
-      "Incertain": " incertaines",
-      "À confirmer": " à confirmer"
-    } : {
-      "Prévue": "",
-      "Très probable": " très probable",
-      "Probable": " probable",
-      "Possible": " possible",
-      "Envisagée": " envisagée",
-      "Peu probable": " peu probable",
-      "Très peu probable": " très peu probable",
-      "Incertain": " incertaine",
-      "À confirmer": " à confirmer"
-    })[probabilitySummary.text] ?? "";
-    const rainSubject = hasStorm ? "Pluie orageuse" : pluralRain ? "Averses" : "Pluie";
-    const disagreementSummary = rainSubject + likelihood + (timingSummary ? " " + timingSummary + "," : "") + " " + quantitySummary + ".";
-    // La synthèse reste qualitative. Les valeurs exactes restent dans le
-    // pictogramme et son détail accessible.
-    const rainDescription = hideRain ? "" : rainDisagreement
-      ? disagreementSummary
-      : conciseRainSummary(rain, [], [], showers, hasStorm, probabilitySummary) || "Pas de pluie.";
-    const windDescription = conciseWindSummary([wind], [gust], [], [], [directionValue]);
-    const cloudDetail = periodMetricRow(periodMetricPictogram("cloud", periodCloudStep(cloud), "Nébulosité " + format(cloud, 0) + " %", [hasOpenMeteoPeriod ? "Open-Meteo : " + format(period.cloudCover, 0) + " % " + (openMeteoTrends.cloud || "→") : "", meteoFranceWind?.cloudCover != null ? "Météo-France : " + format(meteoFranceWind.cloudCover, 0) + " %" : ""]), format(cloud, 0) + " %", skyDescription);
-    const rainKind = showers ? "showers" : "rain";
-    const showerPlus = showers ? '<span class="week-shower-plus" aria-hidden="true">+</span>' : "";
-    const rainPictogramLabel = "Pluie " + rainRangeText + " mm" + (rainProbability != null ? " · probabilité " + format(rainProbability, 0) + " %" : "");
-    const rainPictogram = '<span class="week-rain-pictogram">' + periodMetricPictogram(rainKind, rainStep, rainPictogramLabel, rainSources) + showerPlus + '</span>';
-    const rainDetail = periodMetricRow(rainPictogram, escapeText(rainRangeText) + " mm", rainDescription, "week-rain-row");
-    const windDetail = '<div class="week-wind-group"><div class="week-grouped-metric-line"><dt>' + periodMetricPictogram("wind", windStep, "Vent " + windRangeText + " km/h", windSources) + '</dt><dd><span class="week-metric-number">(' + direction + escapeText(windRangeText) + ' km/h)</span></dd></div><div class="week-grouped-metric-line"><dt>' + periodMetricPictogram("gust", gustStep, "Rafales " + gustRangeText + " km/h", gustSources) + '</dt><dd><span class="week-metric-number">(' + escapeText(gustRangeText) + ' km/h)</span></dd></div><p class="week-metric-description">' + escapeText(windDescription) + '</p></div>';
-    const stormDescription = hasStorm
-      ? Number(period?.weatherCode) >= 96 ? "Phénomène orageux violent possible selon " + stormSourceLabel + "." : "Orage possible selon " + stormSourceLabel + "."
-      : "Pas d’orage.";
-    const stormDetail = periodMetricRow(periodMetricPictogram("storm", stormStep, hasStorm ? Number(period?.weatherCode) >= 96 ? "Phénomène violent possible" : "Orage possible" : "Pas d’orage", stormSources), "", stormDescription, "daily-period-storm-detail");
-    const hazardMarkup = hazard ? '<span class="daily-period-hazards">' + hazard + '</span>' : "";
+    const detailsMarkup = forecastPeriodDetailsMarkup({ cloud, rain, rainLabel: rainRangeText + " mm", wind, gust, directionValue,
+      hasStorm, weatherCode: period?.weatherCode, showers, hideRain, probabilitySummary, rainDisagreement,
+      rainTiming: period?.rainTiming, slotKey: slot.key, sources: sourcePeriods, stormLevel: stormStep });
+
     // Chaque modèle conserve son propre scénario pluie/probabilité. Cela
     // évite de fabriquer un niveau avec la probabilité de l'un et le cumul de
     // l'autre. L'orage ne relève le niveau que s'il chevauche soit une pluie
@@ -2593,7 +2600,7 @@ function renderTestingDailyForecast() {
     ]);
     const alertClass = alertTone ? " daily-period-alert-" + alertTone : "";
     const titleAttribute = labelTitle ? ' title="' + escapeText(labelTitle) + '"' : "";
-    return '<details class="daily-period-card' + alertClass + pastClass + '" data-period-key="' + escapeText(periodKey) + '"><summary><span class="daily-period-title"' + titleAttribute + '><strong>' + label + '</strong>' + vigilanceSlotIcons(vigilanceAlerts) + '</span><span class="daily-period-icon weather-icon chart-point" tabindex="0" data-tooltip="' + escapeText("Précipitations\n" + rainSources.filter(Boolean).join("\n")) + '">' + icon + hazardMarkup + '</span><span class="daily-period-values">' + temperature + rainVolume + gustVolume + '</span>' + notableMarkup + '<span class="daily-period-chevron" aria-hidden="true">⌄</span></summary><div class="daily-period-details"><dl>' + cloudDetail + rainDetail + windDetail + stormDetail + '</dl></div></details>';
+    return '<details class="daily-period-card' + alertClass + pastClass + '" data-period-key="' + escapeText(periodKey) + '"><summary><span class="daily-period-title"' + titleAttribute + '><strong>' + label + '</strong>' + vigilanceSlotIcons(vigilanceAlerts) + '</span><span class="daily-period-icon weather-icon chart-point" tabindex="0" data-tooltip="' + escapeText("Précipitations\n" + rainSources.filter(Boolean).join("\n")) + '">' + icon + hazardMarkup + '</span><span class="daily-period-values">' + temperature + rainVolume + gustVolume + '</span>' + notableMarkup + '<span class="daily-period-chevron" aria-hidden="true">⌄</span></summary><div class="daily-period-details">' + detailsMarkup + '</div></details>';
   };
   const openMeteoByDate = new Map((latestWeekForecast?.days || [])
     .filter(day => day.date >= todayDateKey())
@@ -2677,17 +2684,13 @@ function threeHourHazardsMarkup(period) {
   return parts.length ? '<span class="piaf-summary-hazards">' + parts.map(part => '<b>' + escapeText(part) + '</b>').join('<span aria-hidden="true"> · </span>') + '</span>' : "";
 }
 
-function dailyRowPeriodsMarkup(day, state) {
+function dailyRowPeriodsMarkup(day, state, sourceRows = []) {
   const format = (value, digits = 0) => value == null ? "—" : Number(value).toLocaleString("fr-FR", { maximumFractionDigits: digits });
-  const row = (pictogram, amount, description) => '<div class="week-metric-row"><dt>' + pictogram + '</dt><dd>'
-    + (amount ? '<span class="week-metric-number">(' + escapeText(amount) + ')</span>' : '') + '</dd>'
-    + (description ? '<p class="week-metric-description">' + escapeText(description) + '</p>' : '') + '</div>';
   return forecastDailySlots.map(slot => {
     const { start, end } = forecastSlotTimeRange(day.date, slot);
     const period = dailyRowsTools.dailyPeriodSummary(day, start, end, appNow());
-    const source = key => key === "rain" ? period.rainSources.join(" · ") : period.sources[key];
-    const metric = (kind, value, step, label, owner) => value == null ? '<span class="day-detail-unavailable">—</span>'
-      : periodMetricPictogram(kind, step, label, [owner + " : " + label]);
+    const sourcePeriods = dailyRowsTools.dailyPeriodSourceSummaries(sourceRows, day.date, start, end, appNow());
+    const sourceDetails = key => periodSourceDetails(sourcePeriods, key);
     const rain = period.rain;
     const probabilityValues = period.rainSources.length === 1 && period.rainSources[0] === "Open-Meteo"
       ? (latestForecastData?.openMeteo?.hours || []).filter(hour => Date.parse(hour.time) > period.begin && Date.parse(hour.time) <= end)
@@ -2698,39 +2701,27 @@ function dailyRowPeriodsMarkup(day, state) {
     const rainAmount = rain == null ? "—" : snow ? (period.liquidRain > 0 ? format(period.liquidRain, 2) + " mm · " : "") + snowAmount
       : (rain > 0 && rain < .01 ? "< 0,01" : rain > 0 && rain < .1 ? "< 0,1" : format(rain, 2)) + " mm";
     const amount = rainAmount + (period.estimated ? "*" : "") + (rain != null && !period.completeRain ? " (partiel)" : "");
-    const noun = slot.key === "morning" ? "matinée" : slot.key === "afternoon" ? "après-midi" : slot.key === "evening" ? "soirée" : "nuit";
-    const deNoun = slot.key === "afternoon" ? "d’après-midi" : "de " + noun;
-    const timing = period.rainTiming === "start" ? "en début " + deNoun : period.rainTiming === "end" ? "en fin " + deNoun
-      : period.rainTiming === "middle" ? "au milieu de " + (slot.key === "afternoon" ? "l’après-midi" : "la " + noun) : "";
-    let rainDescription = rain == null ? "Précipitations indisponibles." : rain === 0 && period.completeRain ? "Pas de pluie." : "";
-    if (rain > 0) {
-      rainDescription = snow ? (period.liquidRain > 0 ? "Pluie et neige" : "Neige") + (timing ? " " + timing : "") + "."
-        : rain < .01 ? "Traces de précipitations." : conciseRainSummary(rain, probabilityValues, [], false, period.storm === true, probability);
-      if (!snow && rain >= .01 && timing) rainDescription = rainDescription.replace(/\.$/, " " + timing + ".");
-    }
-    const cloudDescription = period.cloudCover == null ? "Nébulosité indisponible." : conciseSkySummary(period.cloudCover);
-    const windDescription = period.windSpeed == null && period.windGust == null ? "Vent indisponible."
-      : conciseWindSummary(period.windSpeed == null ? [] : [period.windSpeed], period.windGust == null ? [] : [period.windGust], [], [], period.windDirection == null ? [] : [period.windDirection]);
-    const direction = period.windDirection == null ? "" : '<span class="daily-period-wind-arrow" style="transform:rotate(' + period.windDirection + 'deg)" aria-hidden="true">↑</span>';
-    const cloudDetail = row(metric("cloud", period.cloudCover, cloudCoverBand(period.cloudCover), format(period.cloudCover) + " %", source("cloudCover")), format(period.cloudCover) + " %", cloudDescription);
-    const rainOwner = source("rain") + (period.estimated ? " · part estimée au prorata des intervalles source" : "");
-    const rainDetail = row(metric("rain", rain, rain >= .01 ? rainPictogramStep(rain) : 0, amount, rainOwner), amount, rainDescription);
-    const windDetail = '<div class="week-wind-group"><div class="week-grouped-metric-line"><dt>'
-      + metric("wind", period.windSpeed, meanWindIntensityLevel(period.windSpeed), format(period.windSpeed) + " km/h", source("windSpeed"))
-      + '</dt><dd><span class="week-metric-number">(' + direction + format(period.windSpeed) + ' km/h)</span></dd></div><div class="week-grouped-metric-line"><dt>'
-      + metric("gust", period.windGust, gustIntensityLevel(period.windGust), format(period.windGust) + " km/h", source("windGust"))
-      + '</dt><dd><span class="week-metric-number">(' + format(period.windGust) + ' km/h)</span></dd></div><p class="week-metric-description">' + escapeText(windDescription) + '</p></div>';
-    const stormDescription = period.storm === true ? "Orage possible." : period.storm === false ? "Pas d’orage." : "Prévision d’orage indisponible.";
-    const stormDetail = row(metric("storm", period.storm, period.storm ? 3 : 0, stormDescription, source("storm")), "", stormDescription);
-    const details = '<dl>' + cloudDetail + rainDetail + windDetail + stormDetail + '</dl>';
+    const weatherCode = sourcePeriods.find(item => item.name === period.sources.storm)?.weatherCode;
+    const details = forecastPeriodDetailsMarkup({ cloud: period.cloudCover, rain, rainLabel: snow || period.estimated || !period.completeRain ? amount : undefined,
+      wind: period.windSpeed, gust: period.windGust, directionValue: period.windDirection, hasStorm: period.storm,
+      weatherCode, showers: (weatherCode >= 80 && weatherCode <= 82) || period.storm === true, hideRain: weekRainBelowDisplayThreshold(probabilityValues, period.storm === true),
+      probabilitySummary: probability, rainTiming: period.rainTiming,
+      slotKey: slot.key, sources: sourcePeriods, snowfall: period.snowfall, liquidRain: period.liquidRain });
+    const { hazardMarkup, gustVolume } = forecastPeriodHighlights({ storm: period.storm, gust: period.windGust, sources: sourcePeriods });
+    const alertTone = forecastSlotAlertTone(sourcePeriods.map(item => ({ wind: item.windSpeed, gust: item.windGust,
+      rain: item.rain, probability: item.probability, rain3h: item.rain3h,
+      stormRainOverlap: item.stormRainOverlap, stormRainWindOverlap: item.stormRainWindOverlap })));
     const time = new Date((start + end) / 2).toISOString();
     const icon = dailyRowsTools.weatherPictogram({ ...period, time, rain: rain == null ? null : rain >= .01 ? rain / ((end - period.begin) / 3600000) : 0,
-      stormSignal: period.storm === true }, displayIcon);
+      cloudCover: period.cloudCover ?? (period.storm ? 100 : null), stormSignal: false }, displayIcon);
     const temperatures = '<span class="daily-period-temperatures"><span><small>Max.</small><strong>' + format(period.temperatureMax) + '°</strong></span><span><small>Min.</small><b>' + format(period.temperatureMin) + '°</b></span></span>';
     const rainVolume = rain >= .01 ? '<span class="daily-period-rain-volume"><svg viewBox="0 0 24 24" aria-hidden="true">' + periodMetricIcons.rain + '</svg><strong>' + escapeText(rainAmount) + '</strong></span>' : "";
     const title = slot.key === "night" ? "Nuit du " + nightPeriodDateFormat.format(new Date(day.date + "T12:00:00")) + " au " + nightPeriodDateFormat.format(new Date(shiftForecastDateKey(day.date, 1) + "T12:00:00")) + " matin" : "";
-    const summary = '<span class="daily-period-title"' + (title ? ' title="' + escapeText(title) + '"' : '') + '><strong>' + slot.label + '</strong></span><span class="daily-period-icon weather-icon">' + (period.available ? icon : "—") + '</span><span class="daily-period-values">' + (period.available ? temperatures + rainVolume : "—") + '</span><span class="daily-period-chevron" aria-hidden="true">⌄</span>';
-    return '<details class="daily-period-card' + (end <= appNow() ? ' daily-period-past' : '') + '" data-period-key="' + day.date + ':' + slot.key + '" data-slot-key="' + slot.key + '"' + (state.openPeriod === slot.key ? ' open' : '') + '><summary>' + summary + '</summary><div class="daily-period-details">' + details + '</div></details>';
+    const notable = forecastPeriodSummaryText({ precipitationSum: rain, precipitationProbabilityMax: probability.average,
+      storm: period.storm, weatherCode, windGustMax: period.windGust });
+    const notableMarkup = notable ? '<span class="daily-period-copy">' + escapeText(notable) + '</span>' : "";
+    const summary = '<span class="daily-period-title"' + (title ? ' title="' + escapeText(title) + '"' : '') + '><strong>' + slot.label + '</strong></span><span class="daily-period-icon weather-icon chart-point" tabindex="0" data-tooltip="' + escapeText("Précipitations\n" + sourceDetails("rain").join("\n")) + '">' + (period.available ? icon + hazardMarkup : "—") + '</span><span class="daily-period-values">' + (period.available ? temperatures + rainVolume + gustVolume : "—") + '</span>' + notableMarkup + '<span class="daily-period-chevron" aria-hidden="true">⌄</span>';
+    return '<details class="daily-period-card' + (alertTone ? ' daily-period-alert-' + alertTone : '') + (end <= appNow() ? ' daily-period-past' : '') + '" data-period-key="' + day.date + ':' + slot.key + '" data-slot-key="' + slot.key + '"' + (state.openPeriod === slot.key ? ' open' : '') + '><summary>' + summary + '</summary><div class="daily-period-details">' + details + '</div></details>';
   }).join("");
 }
 
@@ -2746,9 +2737,9 @@ function alignDailyLegendSources(root) {
   });
 }
 
-function renderTerreRougeHeader() {
+function renderSiteHeader() {
   const target = $("site-daylight");
-  if (!target) return;
+  if (!target || !Number.isFinite(siteProfile.latitude) || !Number.isFinite(siteProfile.longitude)) return;
   const now = new Date(appNow());
   const timezone = siteProfile.timezone || "Europe/Paris";
   const time = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: timezone });
@@ -2763,7 +2754,7 @@ function renderTerreRougeHeader() {
 
 function renderWeekForecast() {
   if (dailyRowsLayout) {
-    renderTerreRougeHeader();
+    renderSiteHeader();
     if (!dailyRowsTools) return;
     const target = $("week-forecast");
     dailyChartsResizeObserver?.disconnect();
@@ -2777,7 +2768,7 @@ function renderWeekForecast() {
     };
     const days = dailyRowsTools.buildDailyRows({ dashboard: latestForecastData || {}, week: latestMeteoFranceWeek,
       now: appNow(), timezone: siteProfile.timezone, count: siteProfile.forecastDays || 16, sunTimesForDate: sunTimes });
-    const collapsible = siteProfile.dailyPresentation === "tatins-rows";
+    const collapsible = siteProfile.dailyPresentation === "period-cards";
     const chartOptions = { timezone: siteProfile.timezone, iconMarkup: displayIcon, rainScale: dailyRowsTools.dailyRainScale(days),
       backgroundForTime: time => daylightColor(time, new Date(time)) };
     const piafTarget = $("piaf-three-hour-chart");
@@ -2808,8 +2799,10 @@ function renderWeekForecast() {
     if (collapsible) target.querySelectorAll(".forecast-day-periods").forEach(article => {
       stateForDate(article.dataset.dayDate).openPeriod = article.querySelector(".daily-period-card[open]")?.dataset.slotKey || null;
     });
+    const sourceRows = collapsible ? dailyRowsTools.buildDailySourceRows({ dashboard: latestForecastData || {}, week: latestMeteoFranceWeek,
+      now: appNow(), timezone: siteProfile.timezone, count: siteProfile.forecastDays || 16 }) : [];
     target.innerHTML = dailyRowsTools.dailyRowsMarkup(days, { ...chartOptions, now: appNow(), stateForDate,
-      collapsible, periodsMarkup: dailyRowPeriodsMarkup, updateMarkup: dailyDataUpdateMarkup, chartIconMarkup: graphIconMarkup("daily-day-open-icon"),
+      collapsible, periodsMarkup: (day, state) => dailyRowPeriodsMarkup(day, state, sourceRows), updateMarkup: dailyDataUpdateMarkup, chartIconMarkup: graphIconMarkup("daily-day-open-icon"),
       controlsMarkup: opacities => forecastMetricControlsMarkup(opacities) });
     target.querySelectorAll("[data-day-date]").forEach(article => {
       const state = stateForDate(article.dataset.dayDate);
@@ -4087,12 +4080,12 @@ function renderForecast(arome, pearome, ensemble, openMeteo) {
     const shortTermPassage = Number(item.rainEtaPassage);
     const shortTermDetail = isShortTermHour
       ? '\nMétéo-France : ' + Number(item.rainBasePiaf || 0).toFixed(2) + ' mm'
-        + (Number(item.rainDirectRadarAmendment) > 0 ? '\nRadar aux Tatins : +' + Number(item.rainDirectRadarAmendment).toFixed(2) + ' mm' : '')
+        + (Number(item.rainDirectRadarAmendment) > 0 ? '\nRadar au point de prévision : +' + Number(item.rainDirectRadarAmendment).toFixed(2) + ' mm' : '')
         + (Number(item.rainEtaAmendment) > 0 ? '\nCellule(s) ETA si passage : +' + Number(item.rainEtaAmendment).toFixed(2) + ' mm' : '')
         + (Number.isFinite(shortTermPassage) && shortTermPassage < 100 ? '\nPassage Nowcasting : ' + Math.round(shortTermPassage) + ' %' : '')
         + ((item.rainEtaCellIds || []).length ? '\nCellule(s) avec ETA : ' + item.rainEtaCellIds.join(', ') : '')
       : '';
-    const detail = (item.rainSource || forecastModelLabel) + '\nCumul : ' + displayedAmount.toFixed(2) + ' mm (' + durationLabel + ')' + shortTermDetail + intervalPeriod + (item.rainRadarCellOverPoint ? '\nPluie détectée aux Tatins par le radar' : '') + (usePearomePeriod ? '\nRéférence AROME : ' + aromeAmount.toFixed(2) + ' mm' : '') + (hasProbability ? '\nProbabilité : ' + probability + '%' : '') + (interval ? '\n' + intervalLabel + ' : ' + interval.low.toFixed(2) + ' – ' + interval.high.toFixed(2) + ' mm sur ' + durationHours + ' h' : '') + '\nÉchéance : ' + dateTimeFormat.format(new Date(item.time));
+    const detail = (item.rainSource || forecastModelLabel) + '\nCumul : ' + displayedAmount.toFixed(2) + ' mm (' + durationLabel + ')' + shortTermDetail + intervalPeriod + (item.rainRadarCellOverPoint ? '\nPluie détectée au point de prévision par le radar' : '') + (usePearomePeriod ? '\nRéférence AROME : ' + aromeAmount.toFixed(2) + ' mm' : '') + (hasProbability ? '\nProbabilité : ' + probability + '%' : '') + (interval ? '\n' + intervalLabel + ' : ' + interval.low.toFixed(2) + ' – ' + interval.high.toFixed(2) + ' mm sur ' + durationHours + ' h' : '') + '\nÉchéance : ' + dateTimeFormat.format(new Date(item.time));
     const precipitationLabel = drops ? 'gouttes' : measurable ? displayedAmount.toFixed(isShortTermHour ? 2 : 1) + ' mm' : (!pearome && probability >= rainRiskDisplayThreshold ? 'pluie' : '');
     const intervalAmountLabel = interval && measurable && !drops ? '(' + interval.low.toFixed(1) + '–' + interval.high.toFixed(1) + ' mm)' : '';
     const centerX = usePearomePeriod ? (periodIndexes[0] * cell + (periodIndexes.length * cell) / 2) : x(index);
@@ -4555,7 +4548,7 @@ function nowcastRectangleDistance(left, right) {
 }
 
 // Choisit une position proche de la cellule, contenue dans la carte et, dès
-// que possible, hors de la zone occupée par Les Tatins et son libellé.
+// que possible, hors de la zone occupée par le lieu et son libellé.
 function nowcastCellOverlayPlacement({ cellBounds, targetBounds = null, viewport, overlaySize }) {
   const margin = 8;
   const gap = 8;
@@ -4626,8 +4619,7 @@ function renderThreatMap(radar, lightning = null, mapRadiusKm = activeNowcastMap
   const updateTimestamp = radar?.dataUpdatedAt || radar?.fetchedAt || radar?.observedAt;
   const updateAgeMarkup = '<span class="storm-map-age">' + escapeText(radarDataAgeLabel(updateTimestamp)) + '</span>';
 
-  const width = window.matchMedia("(max-width: 600px)").matches ? 360 : 640;
-  const height = 360;
+  const { width, height } = sandboxNowcastDimensions();
   const radarCells = (radar?.cells || []).map((cell, index) => ({
     ...cell,
     id: cell.id || String.fromCharCode(65 + index)
@@ -4646,7 +4638,7 @@ function renderThreatMap(radar, lightning = null, mapRadiusKm = activeNowcastMap
       return '<g class="range-distance"><circle class="range-ring" cx="' + targetX + '" cy="' + targetY + '" r="' + radius.toFixed(1) + '"></circle><text x="' + labelX.toFixed(1) + '" y="' + labelY.toFixed(1) + '" text-anchor="middle">' + distance + ' km</text></g>';
     }).join('');
     const lightningMarks = (lightning?.flashes || []).filter(flash => Math.hypot(Number(flash.eastKm), Number(flash.northKm)) <= mapRadiusKm).map(flash => '<g class="lightning-flash" transform="translate(' + (targetX + flash.eastKm * scale).toFixed(1) + ' ' + (targetY - flash.northKm * scale).toFixed(1) + ')"><path d="M2-8-4 1h4l-2 8 7-11H1z"></path></g>').join('');
-    return '<div class="storm-map"><div class="storm-map-leaflet" aria-hidden="true"></div>' + updateAgeMarkup + '<svg viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="Zone de détection radar à ' + mapRadiusKm + ' km centrée sur Les Tatins"><g class="north-arrow"><path d="M28 40V17l-5 8m5-8 5 8"></path><text x="23" y="54">N</text></g>' + rings + lightningMarks + '<g class="target-point"><title>Les Tatins</title><circle cx="' + targetX + '" cy="' + targetY + '" r="5"></circle><text x="' + (targetX + 8) + '" y="' + (targetY - 8) + '" text-anchor="start">Les Tatins</text></g></svg></div>';
+    return '<div class="storm-map"><div class="storm-map-leaflet" aria-hidden="true"></div><div class="nowcast-map-attribution"><a href="https://www.esri.com/" target="_blank" rel="noopener">Fond © Esri</a></div>' + updateAgeMarkup + '<svg viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="Zone de détection radar à ' + mapRadiusKm + ' km centrée sur le lieu"><g class="north-arrow"><path d="M28 40V17l-5 8m5-8 5 8"></path><text x="23" y="54">N</text></g>' + rings + lightningMarks + '<g class="target-point"><title>le lieu</title><circle cx="' + targetX + '" cy="' + targetY + '" r="5"></circle><text x="' + (targetX + 8) + '" y="' + (targetY - 8) + '" text-anchor="start">le lieu</text></g></svg></div>';
   }
   const points = threat.track?.points || [];
   const etaProjectionCells = nowcastEtaProjectionCells(radarCells);
@@ -4856,7 +4848,7 @@ function renderThreatMap(radar, lightning = null, mapRadiusKm = activeNowcastMap
     }
     return '<g class="radar-cell-marker" data-nowcast-cell-marker="' + escapeText(cellId) + '">' + shape + '<text class="cell-name' + (selected ? '' : ' secondary') + '" x="' + labelX.toFixed(1) + '" y="' + labelY.toFixed(1) + '" text-anchor="end">' + escapeText(cellId) + '</text></g>';
   }).join('');
-  const lightningMarks = (lightning?.flashes || []).filter(flash => flash.eastKm >= minimumEast && flash.eastKm <= maximumEast && flash.northKm >= minimumNorth && flash.northKm <= maximumNorth).map(flash => '<g class="lightning-flash" transform="translate(' + x(flash.eastKm).toFixed(1) + ' ' + y(flash.northKm).toFixed(1) + ')"><path d="M2-8-4 1h4l-2 8 7-11H1z"></path><title>Éclair · ' + escapeText(Number(flash.distanceKm).toFixed(1)) + ' km des Tatins</title></g>').join('');
+  const lightningMarks = (lightning?.flashes || []).filter(flash => flash.eastKm >= minimumEast && flash.eastKm <= maximumEast && flash.northKm >= minimumNorth && flash.northKm <= maximumNorth).map(flash => '<g class="lightning-flash" transform="translate(' + x(flash.eastKm).toFixed(1) + ' ' + y(flash.northKm).toFixed(1) + ')"><path d="M2-8-4 1h4l-2 8 7-11H1z"></path><title>Éclair · ' + escapeText(Number(flash.distanceKm).toFixed(1)) + ' km du point de prévision</title></g>').join('');
   const secondaryTracks = '';
   const milestones = '';
   const targetX = x(0).toFixed(1);
@@ -4873,10 +4865,10 @@ function renderThreatMap(radar, lightning = null, mapRadiusKm = activeNowcastMap
   const distanceMiddleX = (x(0) + threatX) / 2;
   const distanceMiddleY = (y(0) + threatY) / 2;
   const distanceLink = '';
-  return '<div class="storm-map"><div class="storm-map-leaflet" aria-hidden="true"></div>' + updateAgeMarkup + '<svg viewBox="0 0 ' + width + ' ' + height + '" role="group" aria-label="Cellules radar et trajectoires avec ETA sur la carte à ' + mapRadiusKm + ' km"><defs><marker id="storm-arrowhead" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="3.2" markerHeight="3.2" orient="auto"><path d="M1 2L10 6L1 10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></marker></defs>' +
+  return '<div class="storm-map"><div class="storm-map-leaflet" aria-hidden="true"></div><div class="nowcast-map-attribution"><a href="https://www.esri.com/" target="_blank" rel="noopener">Fond © Esri</a></div>' + updateAgeMarkup + '<svg viewBox="0 0 ' + width + ' ' + height + '" role="group" aria-label="Cellules radar et trajectoires avec ETA sur la carte à ' + mapRadiusKm + ' km"><defs><marker id="storm-arrowhead" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="3.2" markerHeight="3.2" orient="auto"><path d="M1 2L10 6L1 10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></marker></defs>' +
     '<path class="map-axis" d="M' + targetX + ' 14V' + (height - 14) + 'M18 ' + targetY + 'H' + (width - 18) + '"></path><g class="north-arrow"><path d="M28 40V17l-5 8m5-8 5 8"></path><text x="23" y="54">N</text></g>' + rangeRings +
     distanceLink + cones + secondaryTracks + cells + lightningMarks + directionChevrons + milestones +
-    '<g class="target-point"><title>Les Tatins</title><circle cx="' + targetX + '" cy="' + targetY + '" r="5"></circle><text x="' + (targetX + 8) + '" y="' + (targetY - 8) + '" text-anchor="start">Les Tatins</text></g>' +
+    '<g class="target-point"><title>le lieu</title><circle cx="' + targetX + '" cy="' + targetY + '" r="5"></circle><text x="' + (targetX + 8) + '" y="' + (targetY - 8) + '" text-anchor="start">le lieu</text></g>' +
     '</svg>' + (etaProjectionCells.some(cell => radarCellShapeRuns(cell).length)
       ? (etaProjectionCells.some(cell => cell.passageEnsemble?.status === 'ready')
         ? '<div class="nowcast-probability-legend" title="Probabilité estimée de passage sur l’horizon annoncé.">Passage estimé · 0 % <span aria-hidden="true"></span> 100 %</div>'
@@ -5013,8 +5005,7 @@ function initializeNowcastMapBackground(mapRadiusKm) {
   }
   const container = document.querySelector("#radar-nowcast .storm-map-leaflet");
   if (!container || !window.L) return;
-  const width = window.matchMedia("(max-width: 600px)").matches ? 360 : 640;
-  const height = 360;
+  const { width, height } = sandboxNowcastDimensions();
   const scale = nowcastMapScale(width, height, mapRadiusKm);
   const eastExtentKm = width / (2 * scale);
   const northExtentKm = height / (2 * scale);
@@ -5039,29 +5030,11 @@ function initializeNowcastMapBackground(mapRadiusKm) {
     zoomAnimation: false,
     markerZoomAnimation: false
   }).setView([point.lat, point.lon], mapRadiusKm === 20 ? 9 : 7);
+  window.L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}", { maxZoom: 16, opacity: 0.62, attribution: "" }).addTo(nowcastLeafletMap);
   let placeContext = [];
-  const regionalPlaceNames = new Set(["Montélimar", "Carpentras", "Sisteron", "Embrun", "Valence", "Grenoble", "Gap", "Briançon"]);
-  const regionalPlaceFallback = [
-    { name: "Montélimar", place: "town", latitude: 44.5579, longitude: 4.7503, distanceKm: 68 },
-    { name: "Carpentras", place: "town", latitude: 44.0554, longitude: 5.0488, distanceKm: 79 },
-    { name: "Sisteron", place: "town", latitude: 44.1963, longitude: 5.9444, distanceKm: 58 },
-    { name: "Embrun", place: "town", latitude: 44.5642, longitude: 6.4958, distanceKm: 72 },
-    { name: "Valence", place: "city", latitude: 44.9332, longitude: 4.8921, distanceKm: 64 },
-    { name: "Grenoble", place: "city", latitude: 45.1876, longitude: 5.7358, distanceKm: 60 },
-    { name: "Gap", place: "town", latitude: 44.5612, longitude: 6.0821, distanceKm: 40 },
-    { name: "Briançon", place: "town", latitude: 44.899, longitude: 6.643, distanceKm: 87 }
-  ];
-  const localPlaceFallback = [
-    { name: "Châtillon-en-Diois", place: "village", latitude: 44.6952, longitude: 5.4857, distanceKm: 11.5 },
-    { name: "Die", place: "town", latitude: 44.7537, longitude: 5.3703, distanceKm: 21.2 },
-    { name: "Saint-Roman", place: "village", latitude: 44.692, longitude: 5.432, distanceKm: 14 },
-    { name: "Valdrôme", place: "village", latitude: 44.5043, longitude: 5.5724, distanceKm: 16.8 },
-    { name: "La Faurie", place: "village", latitude: 44.568, longitude: 5.739, distanceKm: 14.7 },
-    { name: "Aspremont", place: "village", latitude: 44.491, longitude: 5.729, distanceKm: 20.8 },
-    { name: "Clelles", place: "village", latitude: 44.827, longitude: 5.623, distanceKm: 19.4 },
-    { name: "Glandage", place: "village", latitude: 44.6885, longitude: 5.5977, distanceKm: 3.9 },
-    { name: "Lus-la-Croix-Haute", place: "village", latitude: 44.665, longitude: 5.705, distanceKm: 8.5 }
-  ];
+  const regionalPlaceNames = new Set();
+  const regionalPlaceFallback = [];
+  const localPlaceFallback = [];
   const placeLayer = window.L.layerGroup().addTo(nowcastLeafletMap);
   const renderPlaceLabels = () => {
     placeLayer.clearLayers();
@@ -5176,8 +5149,11 @@ function renderThreeHourSummary(forecast) {
         ? "PIAF · cycle du " + dateTimeFormat.format(new Date(forecast.sourceCycleAt))
           + (appNow() - forecast.sourceCycleAt > sourceFreshness.piaf ? " · actualisation ancienne" : "")
         : "PIAF · prévisions en attente d’actualisation") + '</p>' : '';
-    summaryElement.innerHTML = cycleLabel + generalExpertise;
+    summaryElement.innerHTML = sandboxThreeHourTimeline(forecast.timelineSlots, now, forecast.ongoingStorm);
+    if (cycleLabel) summaryElement.insertAdjacentHTML('afterbegin', cycleLabel);
     initializeThreeHourMessageSequence(summaryElement);
+    summaryElement.querySelector(".horizon-scroll")?.addEventListener("click", event => { if (!event.target.closest("button")) sandboxToggleRainDetails(); });
+    sandboxBindRainScroll();
     summaryElement.querySelectorAll('[data-summary-target]').forEach(button => {
       if (button.dataset.summaryTarget === "wind48") {
         button.setAttribute("aria-controls", "panel-48h");
@@ -5189,6 +5165,7 @@ function renderThreeHourSummary(forecast) {
       button.setAttribute("aria-controls", details?.id || "");
       button.setAttribute("aria-expanded", String(details ? !details.hidden : false));
       button.addEventListener('click', () => {
+        if (button.dataset.summaryTarget === "rain" && button.closest(".horizon-scroll")) { sandboxToggleRainDetails(); return; }
         if (!details) return;
         if (button.dataset.summaryTarget === "nowcast") {
           setNowcastOpen(details.hidden, details.hidden);
@@ -5264,7 +5241,7 @@ function renderRadarNowcast(radar, piaf, arome, lightning, vigilance = null) {
     const trackedSince = cell.trackedSince ? hourFormat.format(new Date(cell.trackedSince)) : "—";
     const confidence = cell.track?.confidence == null ? null : Math.round(Number(cell.track.confidence));
     const confidenceText = Number.isFinite(confidence) ? confidence + " %" : "—";
-    const label = "Cellule " + cell.id + " · bord à " + distance + " des Tatins · passage " + passageText + " · " + etaDetail
+    const label = "Cellule " + cell.id + " · bord à " + distance + " du point de prévision · passage " + passageText + " · " + etaDetail
       + " · grêle " + hailLevel + " sur 5 · pluie " + rainLevel + " sur 5 · foudre " + lightningLevel + " sur 5"
       + " · vitesse " + speedText + " km/h · suivie depuis " + trackedSince + " · confiance trajectoire " + confidenceText;
     const markup = '<div class="nowcast-cell-map-head"><strong>' + escapeText(cell.id) + '</strong><span>' + escapeText(distance) + '</span><b>Passage ' + escapeText(passageText) + '</b><b>ETA ' + escapeText(etaText) + '</b></div>'
@@ -5301,7 +5278,7 @@ function renderPiaf(piaf, radar = null) {
   piafBaseTime.setMilliseconds(0);
   // PIAF arrive toutes les 5 minutes. La frise publique regroupe trois pas
   // afin de présenter des cumuls exacts de 15 minutes issus du même run.
-  const values = isTimedForecast ? piaf.values : piafQuarterHourRain(piaf, radar);
+  const values = isTimedForecast ? piaf.values : piafQuarterHourRain(piaf, radar).filter(item => item.intervalEnd > appNow());
   if (!values.length) {
     $("rain-bars").innerHTML = '<p class="horizon-empty">Prévisions de pluie en attente d’actualisation</p>';
     $("rain-axis").innerHTML = '';
@@ -5356,13 +5333,13 @@ function renderPiaf(piaf, radar = null) {
     // Si une quantité est dessinée, afficher cette quantité plutôt qu'un 0 %
     // provenant d'une source probabiliste distincte.
     const label = trace ? "pluie faible" : wet ? precipitation.toFixed(2) + " mm" : risk ? probability + "%" : "";
-    const slotTime = hourFormat.format(slotTimes[index]);
+    const slotTime = hourFormat.format(new Date(slotIntervals[index].start)) + "–" + hourFormat.format(new Date(slotIntervals[index].end));
     const coveredMinutes = Number.isFinite(item.intervalStart) && Number.isFinite(item.intervalEnd) ? Math.round((item.intervalEnd - item.intervalStart) / 60000) : 15;
     const periodDetail = piaf.source === "arome" ? " (cumul sur 1 h)" : item.complete === false ? " (cumul partiel sur " + coveredMinutes + " min)" : " (cumul sur 15 min)";
     const nowcastDetail = nowcastTotal - precipitation > .01 + 1e-9
       ? "\nAvec nowcasting : " + nowcastTotal.toFixed(2) + " mm (estimation, passage à confirmer)" : "";
     const detail = (isOpenMeteo && !wet && probability != null ? slotTime + " · risque de pluie · probabilité de précipitations " + probability + "% · aucun cumul prévu" : slotTime + " · " + precipitationSourceLabel + " " + precipitation.toFixed(2) + " mm" + periodDetail) + nowcastDetail
-      + (item.piafUnconfirmed && announcedRain ? "\nPluie possible : PIAF non confirmé par le nowcasting récent aux Tatins." : "");
+      + (item.piafUnconfirmed && announcedRain ? "\nPluie possible : PIAF non confirmé par le nowcasting récent au point de prévision." : "");
     const visibleLabel = label;
     return '<div class="now-slice chart-point' + (risk ? " averse-risk" : "") + (trace ? " trace" : "") + '" style="grid-column:' + (index + 1) + ';grid-row:1;--rain-height:' + height + '%" tabindex="0" data-tooltip="' + escapeText(detail) + '"><span class="now-value"' + (trace ? ' data-mobile-label="≈"' : '') + '>' + visibleLabel + '</span><div class="now-bar' + (wet ? " active" : "") + '" style="height:' + height + '%"></div></div>';
   }).join("");
@@ -5417,6 +5394,7 @@ function renderPiaf(piaf, radar = null) {
   const noRainPeriod = !isOpenMeteo && values.every(item => precipitationFor(item) <= 0)
     ? '<span class="now-no-rain-period">Pas de pluie</span>'
     : '';
+  sandboxSyncRainDetails(slotIntervals);
   $("rain-bars").innerHTML = slices + aversePeriods + cellPeriods + noRainPeriod;
   $("rain-bars").querySelectorAll("[data-open-nowcast]").forEach(button => button.addEventListener("click", event => {
     event.stopPropagation();
@@ -5526,7 +5504,7 @@ async function renderAppVersion() {
   let releaseNumber = "";
   try {
     const config = await json("api/config");
-    releaseNumber = String(config.releaseNumber || "");
+    releaseNumber = String(runtimeConfig.releaseNumber || config.releaseNumber || "");
     renderNewsBanner(config.news);
   } catch {}
   if (!/^\d+\.\d{3}$/.test(releaseNumber)) {
@@ -5555,6 +5533,7 @@ function setNowcastOpen(open, scroll = false) {
   details.hidden = !open;
   link?.setAttribute("aria-expanded", String(open));
   titleToggle?.setAttribute("aria-expanded", String(open));
+  $("horizon-nowcast-toggle")?.setAttribute("aria-expanded", String(open));
   document.querySelector('[data-summary-target="nowcast"]')?.setAttribute("aria-expanded", String(open));
   if (open) ensureLeafletAssets()
     .then(() => initializeNowcastMapBackground(activeNowcastMapRadius))
@@ -5563,6 +5542,7 @@ function setNowcastOpen(open, scroll = false) {
 }
 
 function bindHeaderNowcastLink() {
+  $("horizon-nowcast-toggle")?.addEventListener("click", () => setNowcastOpen($("nowcast-details").hidden));
   const link = $("header-nowcast-link");
   const details = $("nowcast-details");
   const titleToggle = $("nowcast-title-toggle");
@@ -5599,6 +5579,15 @@ function registerServiceWorker() {
 bindForecastLayout();
 bindHeaderNowcastLink();
 registerServiceWorker();
+if (window.location.hash === "#radar-nowcast") {
+  const nowcastDetails = $("nowcast-details");
+  if (nowcastDetails) {
+    nowcastDetails.hidden = false;
+    $("header-nowcast-link")?.setAttribute("aria-expanded", "true");
+    $("nowcast-title-toggle")?.setAttribute("aria-expanded", "true");
+    requestAnimationFrame(() => $("radar-nowcast")?.scrollIntoView({ block: "start" }));
+  }
+}
 renderAppVersion();
 if (window.METEO_REPLAY?.start) import(replayEngineUrl.href).then(({ createNowcastEngine }) => {
   const renderState = { snapshot: null, lastTime: -Infinity };
@@ -5624,6 +5613,177 @@ if (window.METEO_REPLAY?.start) import(replayEngineUrl.href).then(({ createNowca
 }).catch(error => { console.error("Moteur du replay indisponible", error); });
 else refresh();
 if ($("site-daylight")) {
-  renderTerreRougeHeader();
-  window.setInterval(renderTerreRougeHeader, 60000);
+  renderSiteHeader();
+  window.setInterval(renderSiteHeader, 60000);
+}
+
+function sandboxNowcastDimensions() {
+  return { width: window.matchMedia("(max-width: 600px)").matches ? 360 : 640, height: 360 };
+}
+function sandboxNowcastContext(label, detail) {
+  return '<button type="button" class="horizon-nowcast-context" data-open-nowcast-link="true" aria-controls="nowcast-details" title="' + escapeText(detail) + '"><span>Nowcasting</span><strong>' + escapeText(label) + '</strong><small>Carte ↗</small></button>';
+}
+function sandboxCloudLevel(value, hasPhenomenon = false) {
+  const cloud = value == null ? NaN : Number(value);
+  const level = !Number.isFinite(cloud) ? (hasPhenomenon ? 5 : 3)
+    : cloud <= 5 ? 0 : cloud <= 25 ? 1 : cloud <= 50 ? 2 : cloud <= 75 ? 3 : cloud <= 90 ? 4 : 5;
+  return hasPhenomenon ? Math.max(1, level) : level;
+}
+function sandboxSkyPresentation(slot) {
+  const hasPhenomenon = slot.level > 0 || Boolean(slot.storm) || Boolean(slot.hail) || Boolean(slot.modelStorm);
+  const level = sandboxCloudLevel(slot.cloudCover, hasPhenomenon);
+  const labels = ["dégagé", "très peu nuageux", "peu nuageux", "nuageux", "très nuageux", "couvert"];
+  const suffixes = ["1", "tres-peu-nuageux", "2", "3", "4", "5"];
+  const period = slot.night ? "nuit" : "jour";
+  return {
+    level,
+    label: (slot.night ? "Nuit, ciel " : "Ciel ") + labels[level],
+    src: "pictogrammes/ciel-" + period + "-" + suffixes[level] + ".svg"
+  };
+}
+function sandboxStormPresentation(slot, now) {
+  if (!slot.storm) return null;
+  const observed = slot.storm.locallyObserved && slot.start <= now && now < slot.end;
+  const qualifier = observed ? "en cours" : shortTermRiskQualifier(slot.storm.passage).trim();
+  const intensity = slot.storm.level >= 4 ? "violent" : slot.storm.level >= 2 ? "modéré" : "faible";
+  return { label: ["Orage", qualifier].filter(Boolean).join(" "), intensity, observed };
+}
+function sandboxSlotPresentation(slot, now) {
+  const sky = sandboxSkyPresentation(slot);
+  const storm = sandboxStormPresentation(slot, now);
+  const rain = slot.level > 0 && slot.label !== "Grêle";
+  const unavailable = slot.label === "Indisponible";
+  const qualifier = slot.label === "Gouttes" ? slot.qualifier.replace(/^(possible|probable)$/, "$1s") : slot.qualifier;
+  let title = unavailable ? "Indisponible" : rain ? slot.label : storm ? "Orage" : slot.hail ? "Grêle" : slot.modelStorm ? "Orage possible" : sky.label.replace(/^Nuit, ciel |^Ciel /, "Ciel ");
+  const details = [];
+  if (rain && qualifier) details.push(qualifier);
+  if (storm) details.push(storm.label + (storm.intensity ? " · " + storm.intensity : ""));
+  if (slot.modelStorm && title !== "Orage possible") details.push("Orage possible");
+  if (slot.hail) {
+    const hailQualifier = slot.hailLocalized == null ? shortTermRiskQualifier(slot.hailRisk).trim() : "possible";
+    if (title !== "Grêle") details.push(["Grêle", hailQualifier].filter(Boolean).join(" "));
+    else if (hailQualifier) details.push(hailQualifier);
+    if (Number.isFinite(Number(slot.hailRisk))) details.push("passage cellule " + Math.round(slot.hailRisk) + " %");
+  }
+  if (slot.hail && storm && !rain) title = "Orage · grêle";
+  const wind = slot.wind >= 2;
+  return {
+    sky, storm, rain, unavailable, title, details,
+    signature: JSON.stringify([sky.level, slot.night, slot.level, title, details, Boolean(slot.hail), wind ? slot.wind : 0, Boolean(slot.modelStorm)])
+  };
+}
+function sandboxWeatherGroups(slots, now) {
+  const groups = [];
+  slots.forEach((slot, index) => {
+    const presentation = sandboxSlotPresentation(slot, now);
+    const previous = groups.at(-1);
+    if (previous?.presentation.signature === presentation.signature && previous.slot.end === slot.start) {
+      previous.endIndex = index + 1;
+      previous.slot.end = slot.end;
+      previous.slot.total += slot.total;
+      previous.slot.windSpeed = Math.max(previous.slot.windSpeed || 0, slot.windSpeed || 0);
+      previous.slot.windGust = Math.max(previous.slot.windGust || 0, slot.windGust || 0);
+      if (Number.isFinite(previous.slot.hailRisk) || Number.isFinite(slot.hailRisk)) {
+        previous.slot.hailRisk = Math.max(Number(previous.slot.hailRisk) || 0, Number(slot.hailRisk) || 0);
+      }
+      if (Number.isFinite(previous.slot.hailScore) || Number.isFinite(slot.hailScore)) {
+        previous.slot.hailScore = Math.max(Number(previous.slot.hailScore) || 0, Number(slot.hailScore) || 0);
+      }
+    } else groups.push({ presentation, startIndex: index, endIndex: index + 1, slot: { ...slot } });
+  });
+  return groups;
+}
+function sandboxStartNearHour(start, end) {
+  const nextHour = (Math.floor(start / 3600000) + 1) * 3600000;
+  return nextHour - start < 30 * 60000 && nextHour <= end;
+}
+function sandboxQuietBoundary(boundary, start, end) {
+  const hideStart = sandboxStartNearHour(start, end);
+  if (boundary === start) return !hideStart;
+  return boundary === end || (boundary % 3600000 === 0
+    && (hideStart || boundary - start >= 30 * 60000) && end - boundary >= 30 * 60000);
+}
+function sandboxThreeHourAxis(slots, time) {
+  const start = slots[0].start, end = slots.at(-1).end;
+  const position = value => (value - start) / (end - start) * 100;
+  const ticks = [start, ...slots.map(slot => slot.end)].filter(boundary => boundary % 900000 === 0).map(boundary =>
+    '<span class="horizon-minute' + (sandboxQuietBoundary(boundary, start, end) ? '' : ' quiet-minor') + (boundary === start && sandboxStartNearHour(start, end) ? ' near-hour-start' : '') + '" style="left:' + position(boundary) + '%" aria-label="' + time(boundary) + '" title="' + time(boundary) + '">' + time(boundary) + '</span>');
+  return '<div class="horizon-axis">' + ticks.join('') + '</div>';
+}
+function sandboxThreeHourTimeline(preparedSlots, now, ongoingStorm = null) {
+  const probabilityStep = value => value <= 0 ? 0 : value < 20 ? 1 : value < 40 ? 2 : value < 60 ? 3 : value < 80 ? 4 : 5;
+  const slots = (preparedSlots || []).filter(slot => slot.end > now).map(slot => ({ ...slot }));
+  if (!slots.length) return '<p class="horizon-empty">Prévision indisponible</p>';
+  const time = value => hourFormat.format(new Date(value));
+  const windIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 7h12c6 0 6-6 1-6M2 12h17c5 0 5 7 0 7M2 17h7c5 0 5 6 1 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+  const clock = value => {
+    const [hour, minute] = time(value).split(":");
+    return Number(hour) + " h" + (minute === "00" ? "" : " " + minute);
+  };
+  const groups = sandboxWeatherGroups(slots, now);
+  const quiet = groups.length === 1 && !groups[0].presentation.rain && !groups[0].presentation.storm && !groups[0].slot.hail && !groups[0].slot.modelStorm && !(groups[0].slot.wind >= 2);
+  const compact = groups.every(group => !group.presentation.rain && !group.presentation.storm && !group.slot.hail && !group.slot.modelStorm
+    && !(group.slot.wind >= 2) && group.presentation.details.length === 0);
+  const renderIcon = (slot, presentation) => {
+    const layers = [presentation.sky.src];
+    if (slot.level > 0) layers.push("pictogrammes/calque-pluie-" + Math.max(1, Math.min(5, slot.level)) + ".svg");
+    if (slot.wind >= 2) layers.push("pictogrammes/calque-vent.svg");
+    if (slot.storm || slot.modelStorm) layers.push("pictogrammes/calque-orage.svg");
+    if (slot.hail) layers.push("pictogrammes/calque-grele.svg");
+    const alt = [presentation.sky.label, presentation.title, ...presentation.details, slot.wind >= 2 ? shortTermWindLabel(slot.wind) : ""].filter(Boolean).join(" · ");
+    return '<span class="horizon-period-icon" role="img" aria-label="' + escapeText(alt) + '">' + layers.map(src => '<img src="' + src + '" alt="" loading="lazy" decoding="async">').join("") + '</span>';
+  };
+  const renderGroup = ({ slot, presentation, startIndex, endIndex }) => {
+    const duration = slot.end - slot.start;
+    const periodLabel = endIndex - startIndex > 1 || duration !== 15 * 60000 ? clock(slot.start) + " – " + clock(slot.end) : clock(slot.start);
+    const stormTone = slot.storm ? stormRiskIntensityStep(presentation.storm?.observed ? 5 : probabilityStep(slot.storm.passage), slot.storm.level) : 0;
+    const hailTone = slot.hail ? probabilityStep(slot.hailRisk) : 0;
+    const tone = Math.max(slot.level || 0, slot.wind || 0, stormTone, hailTone);
+    const rainTone = Math.max(0, Math.min(5, slot.level || 0));
+    const possible = /possible/.test(slot.qualifier || "") || /possible/.test(presentation.storm?.label || "") || Boolean(slot.modelStorm) || slot.hail && slot.hailLocalized !== true;
+    const clear = !presentation.rain && !presentation.storm && !slot.hail && !slot.modelStorm && !(slot.wind >= 2) && presentation.sky.level === 0;
+    const detailed = presentation.details.length > 0 || slot.wind >= 2;
+    const description = periodLabel + " : " + [presentation.title, ...presentation.details].filter(Boolean).join(" · ")
+      + (slot.hailLocalized === false ? " · noyau de grêle non localisé dans les données" : "")
+      + (slot.hail && slot.hailScore != null ? " · indice polarimétrique de la zone " + Math.round(slot.hailScore) + " % (indice non probabiliste)" : "");
+    const mainTag = presentation.rain ? "button" : "div";
+    const mainAction = presentation.rain ? ' type="button" data-summary-target="rain"' : '';
+    const windMaximum = Math.round(Math.max(slot.windGust || 0, slot.windSpeed || 0));
+    const windLabel = windMaximum > 0 ? "max " + windMaximum + " km/h" : shortTermWindLabel(slot.wind);
+    const windMarkup = slot.wind >= 2 ? '<button type="button" class="horizon-period-wind" data-summary-target="wind48" aria-label="' + escapeText(shortTermWindLabel(slot.wind) + (windMaximum ? " · " + windLabel : "")) + '">' + windIcon + '<span>' + escapeText(windLabel) + '</span></button>' : '<span class="horizon-period-wind-spacer" aria-hidden="true"></span>';
+    return '<article class="horizon-period tone-' + tone + ' rain-' + rainTone + (slot.night ? ' is-night' : '') + (clear ? ' is-clear' : '') + (possible ? ' is-possible' : '') + (slot.hail ? ' is-hail' : '') + (slot.label === 'Gouttes' ? ' is-drizzle' : '') + (detailed ? ' is-detailed' : '') + (presentation.unavailable ? ' is-unavailable' : '') + '" style="--period-duration:' + duration + '" aria-label="' + escapeText(description) + '">'
+      + '<time datetime="' + new Date(slot.start).toISOString() + '">' + escapeText(periodLabel) + '</time>'
+      + '<' + mainTag + mainAction + ' class="horizon-period-main" title="' + escapeText(description) + '">' + renderIcon(slot, presentation) + '<strong>' + escapeText(presentation.title) + '</strong><span class="horizon-period-details">' + presentation.details.map(detail => '<span>' + escapeText(detail) + '</span>').join('') + '</span></' + mainTag + '>'
+      + windMarkup + '</article>';
+  };
+  return '<section class="horizon-scroll' + (quiet ? ' is-quiet' : '') + (compact ? ' is-compact' : '') + '" aria-label="Prévisions météo regroupées des trois prochaines heures"><div class="horizon-timeline">'
+    + groups.map(renderGroup).join('') + '</div></section>';
+}
+
+function sandboxToggleRainDetails() {
+  const rain = $("rain-details");
+  const open = rain.hidden;
+  rain.hidden = !open;
+  document.querySelectorAll('.horizon-scroll [data-summary-target="rain"]').forEach(button => {
+    button.setAttribute("aria-controls", "rain-details");
+    button.setAttribute("aria-expanded", String(open));
+  });
+}
+function sandboxSyncRainDetails(intervals) {
+  const slots = intervals.map((interval, index) => ({start: index === 0 ? Math.floor(interval.start / 900000) * 900000 : interval.start, end: interval.end}));
+  if (!slots.length) return;
+  $("rain-bars").style.gridTemplateColumns = slots.map(slot => (slot.end - slot.start) + 'fr').join(' ');
+  $("rain-axis").style.gridTemplateColumns = '';
+  $("rain-axis").innerHTML = sandboxThreeHourAxis(slots, value => hourFormat.format(new Date(value)));
+  sandboxBindRainScroll();
+}
+function sandboxBindRainScroll() {
+  const scrolls = [...document.querySelectorAll('.horizon-scroll, .horizon-detail-scroll')];
+  scrolls.forEach(scroller => {
+    if (scroller.dataset.syncBound) return;
+    scroller.dataset.syncBound = 'true';
+    scroller.addEventListener('scroll', () => document.querySelectorAll('.horizon-scroll, .horizon-detail-scroll').forEach(other => {
+      if (other !== scroller && other.scrollLeft !== scroller.scrollLeft) other.scrollLeft = scroller.scrollLeft;
+    }), {passive:true});
+  });
 }

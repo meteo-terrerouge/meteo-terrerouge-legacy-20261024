@@ -6,7 +6,7 @@ import { createForecastCollectors } from '../weather/collectors.mjs';
 import { prepareBasicForecast } from '../public/forecast-core.js';
 import { collectOpenMeteo } from '../weather/open-meteo.mjs';
 import { collectWeather } from '../scripts/collect-weather.mjs';
-import { siteProfile } from '../sites/profiles.mjs';
+import { siteProfile } from './site-fixture.mjs';
 import { mergeWeatherState, publicWeatherFiles, sourceDue } from '../weather/state.mjs';
 
 const HOUR = 3600000;
@@ -27,7 +27,7 @@ test('neige native : équivalent eau conservé et cm explicitement estimés, san
 
 test('Open-Meteo acquiert pluie liquide et cm séparés, avec absence distincte de zéro', async () => {
   let query;
-  const result = await collectOpenMeteo(siteProfile('terre-rouge'), { fetchImpl: async url => {
+  const result = await collectOpenMeteo(siteProfile(), { fetchImpl: async url => {
     query = url;
     return { ok: true, json: async () => ({ hourly: { time: [stamp / 1000, stamp / 1000 + 3600],
       temperature_2m: [2, -2], precipitation: [2, 1], rain: [.5, null], showers: [.2, 0], snowfall: [.91, null], weather_code: [73, 71] } }) };
@@ -243,7 +243,7 @@ test('la neige à minuit et au changement d’heure conserve ses cumuls, sans ex
 
 test('Open-Meteo est collecté sur 16 jours aux coordonnées du profil sans transmettre de jeton', async () => {
   let target, options;
-  const profile = siteProfile('terre-rouge');
+  const profile = siteProfile();
   const result = await collectOpenMeteo(profile, { fetchImpl: async (url, opts) => {
     target = url; options = opts;
     return { ok: true, json: async () => ({ hourly: { time: [stamp / 1000], temperature_2m: [8], precipitation: [null], weather_code: [95] } }) };
@@ -278,12 +278,12 @@ test('les 16 dates et le changement d’heure conservent les 25 heures du 25 oct
 });
 
 test('la collecte conserve l’altitude cible et la maille renvoyées sans les confondre avec le point demandé', async () => {
-  const profile = siteProfile('terre-rouge');
+  const profile = siteProfile();
   const result = await collectOpenMeteo(profile, { fetchImpl: async () => ({ ok: true, json: async () => ({
-    latitude: 44.640648, longitude: 5.6158705, elevation: 1155,
+    latitude: 48.85, longitude: 2.35, elevation: 40,
     hourly: { time: [stamp / 1000], temperature_2m: [8], precipitation: [.1] } }) }) });
   assert.deepEqual(result.location, { requestedLatitude: profile.latitude, requestedLongitude: profile.longitude,
-    gridLatitude: 44.640648, gridLongitude: 5.6158705, elevation: 1155 });
+    gridLatitude: 48.85, gridLongitude: 2.35, elevation: 40 });
 });
 
 test('AROME puis ARPEGE ont priorité ; un champ absent est complété par Open-Meteo', () => {
@@ -1099,7 +1099,7 @@ test('la frise 3 h combine PIAF, températures et pictogrammes ; une panne PIAF 
 });
 
 test('le cache public et la fusion conservent Open-Meteo ; un échec garde la dernière collecte', async () => {
-  const profile = siteProfile('terre-rouge');
+  const profile = siteProfile();
   const previous = { fetchedAt: now, hours: [hour(stamp)] };
   const entry = { siteId: profile.id, latitude: profile.latitude, longitude: profile.longitude, openMeteo: previous };
   assert.ok(!sourceDue('openMeteo', entry, now + 60000));
@@ -1138,7 +1138,7 @@ test('PIAF expiré est visiblement indisponible, jamais assimilé au sec ni remp
 });
 
 
-test('les cartes Terre Rouge reprennent les colonnes des Tatins et gardent la courbe séparée', () => {
+test('les cartes quotidiennes partagent la grille et gardent la courbe séparée', () => {
   const days = buildDailyRows({ now, dashboard: { arome: { hours: Array.from({ length: 49 }, (_, i) => hour(stamp + i * HOUR, { rain: .25, liquidRain: .25, snowfall: 0 })) } } });
   const state = createDailyChartState(), dates = [];
   const html = dailyRowsMarkup(days.slice(0, 2), { now, collapsible: true, stateForDate: () => state,
@@ -1147,7 +1147,7 @@ test('les cartes Terre Rouge reprennent les colonnes des Tatins et gardent la co
   assert.equal((html.match(/class="daily-forecast-card/g) || []).length, 2);
   assert.equal((html.match(/data-slot-key=/g) || []).length, 8);
   assert.equal((html.match(/class="daily-period-grid"/g) || []).length, 2);
-  assert.ok(html.includes('daily-cards-grid terre-rouge-cards-grid'));
+  assert.ok(html.includes('daily-cards-grid bulletin-cards-grid'));
   assert.ok(!html.includes('day-combined-svg'), 'le graphique attend l’ouverture par son bouton');
   assert.equal((html.match(/class="day-chart-toggle"/g) || []).length, 2);
   assert.equal((html.match(/class="[^"]*day-chart-panel[^"]*"[^>]* hidden/g) || []).length, 2);
@@ -1279,4 +1279,50 @@ test('le survol d’actualisation affiche uniquement minutes et heures sans date
   assert.ok(dailyDataUpdateTitle(day(null), now).includes('date inconnue'));
   assert.ok(dailyDataUpdateTitle(day(now + HOUR), now).includes('date future'));
   assert.ok(dailyDataUpdateTitle(day(now), now).includes('à l’instant'));
+});
+
+test('les survols gardent les scénarios des trois sources indépendants et leurs probabilités acquises', async () => {
+  const { buildDailySourceRows, dailyPeriodSourceSummaries } = await import('../public/daily-rows.js');
+  const makeHours = extra => Array.from({ length: 25 }, (_, i) => hour(stamp + i * HOUR, extra));
+  const dashboard = {
+    arome: { hours: makeHours({ rain: 1, cloudCover: 20, windSpeed: 12, windGust: 25, stormSignal: false }) },
+    openMeteo: { hours: makeHours({ rain: 3, probability: 94, cloudCover: 80, windSpeed: 30, windGust: 65, weatherCode: 95 }) }
+  };
+  const week = { hours: makeHours({ rain: 2, cloudCover: 50, windSpeed: 20, windGust: 40, stormSignal: true }) };
+  const before = structuredClone({ dashboard, week });
+  const rows = buildDailySourceRows({ dashboard, week, now });
+  const summaries = dailyPeriodSourceSummaries(rows, '2026-10-21', stamp, stamp + 6 * HOUR, now);
+  assert.deepEqual(summaries.map(item => item.name), ['AROME', 'ARPEGE', 'Open-Meteo']);
+  assert.deepEqual(summaries.map(item => item.rain), [6, 12, 18]);
+  assert.deepEqual(summaries.map(item => item.cloudCover), [20, 50, 80]);
+  assert.deepEqual(summaries.map(item => item.windGust), [25, 40, 65]);
+  assert.deepEqual(summaries.map(item => item.storm), [false, true, true]);
+  assert.deepEqual(summaries.map(item => item.probability), [null, null, 94]);
+  assert.equal(buildDailyRows({ dashboard, week, now })[0].samples[1].windSpeed, 12);
+  assert.deepEqual({ dashboard, week }, before);
+  assert.deepEqual(dailyPeriodSourceSummaries(rows, '2026-11-10', stamp, stamp + HOUR, now), []);
+});
+
+test('les détails par source ne transforment pas une absence en zéro ou probabilité inventée', async () => {
+  const { buildDailySourceRows, dailyPeriodSourceSummaries } = await import('../public/daily-rows.js');
+  const hours = Array.from({ length: 4 }, (_, i) => hour(stamp + i * HOUR, { rain: null, cloudCover: null, windGust: null, probability: null }));
+  const rows = buildDailySourceRows({ now, dashboard: { openMeteo: { hours } } });
+  const [detail] = dailyPeriodSourceSummaries(rows, '2026-10-21', stamp, stamp + 3 * HOUR, now);
+  assert.equal(detail.rain, null);
+  assert.equal(detail.cloudCover, null);
+  assert.equal(detail.windGust, null);
+  assert.equal(detail.probability, null);
+});
+
+test('les alertes par source respectent un cumul natif de trois heures et son chevauchement orageux', async () => {
+  const { buildDailySourceRows, dailyPeriodSourceSummaries } = await import('../public/daily-rows.js');
+  const hours = [hour(stamp, { rain: null, windSpeed: 30, windGust: 50 }),
+    hour(stamp + 3 * HOUR, { rain: 6, rainIntervalStart: new Date(stamp).toISOString(), rainIntervalEnd: new Date(stamp + 3 * HOUR).toISOString(), stormSignal: true, windSpeed: 30, windGust: 50 }),
+    hour(stamp + 6 * HOUR, { rain: 0, rainIntervalStart: new Date(stamp + 3 * HOUR).toISOString(), rainIntervalEnd: new Date(stamp + 6 * HOUR).toISOString(), stormSignal: false, windSpeed: 30, windGust: 50 })];
+  const rows = buildDailySourceRows({ now, week: { hours } });
+  const [summary] = dailyPeriodSourceSummaries(rows, '2026-10-21', stamp, stamp + 6 * HOUR, now);
+  assert.equal(summary.rain3h, 6);
+  assert.equal(summary.stormRainOverlap, true);
+  assert.equal(summary.stormRainWindOverlap, true);
+  assert.equal(summary.probability, null);
 });

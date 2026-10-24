@@ -1,26 +1,20 @@
 {
-  "name": "pluie-gps-piaf",
-  "version": "0.1.0",
+  "name": "bulletin-local-meteo-france",
+  "version": "0.0.3",
   "private": true,
   "type": "module",
+  "description": "Bulletin météo local à partir des API de données ouvertes de Météo-France.",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "start": "node server.mjs",
-    "replay:local": "node local-replay-server.mjs",
-    "check": "node --check server.mjs && node --check local-replay-server.mjs && node --check local-replay-browser-renderer.mjs && node --check local-replay-worker.mjs && node --check local-replay-chunk-worker.mjs && node --check local-replay-archive.mjs && node --check replay-dashboard.mjs && node --check admin-auth.mjs && node --check secure-config.mjs && node --check radar.mjs && node --check pam.mjs && node --check pam-worker.mjs && node --check pam-health.mjs && node --check api-health.mjs && node --check pam-raw-archive.mjs && node --check async-pool.mjs && node --check api-archive.mjs && node --check backup-archive.mjs && node --check testing-archive.mjs && node --check testing-archive-worker.mjs && node --check contact-mailer.mjs && node --check public/app.js && node --check public/admin/admin.js && node --check public/admin/smtp/smtp.js && node --check public/admin/replay/replay.js && node --check public/admin/replay/simple.js && node --check public/admin/replay/capture.js && node --check public/contact/contact.js && node --check public/news/markdown.js && node --check public/news/news.js && node --check public/service-worker.js && node --check nowcast-cache.mjs && node --check nowcast-worker.mjs && node --check public/nowcast/engine.js && node --check public/nowcast/map.js",
-    "check:pages": "node github-pages/prepare-pages.mjs && node github-pages/verify-pages.mjs && node github-pages/prepare-sandbox.mjs --build=20000101000000000 && node github-pages/verify-sandbox.mjs --build=20000101000000000 && node github-pages/prepare-testing.mjs --build=20000101000000000 && node github-pages/verify-testing.mjs --build=20000101000000000 && node github-pages/prepare-release.mjs && node github-pages/verify-release.mjs",
-    "test": "node --test test/*.test.mjs",
-    "collect:site": "node scripts/collect-weather.mjs",
-    "build:site": "node scripts/prepare-site.mjs",
-    "check:sites": "node --check weather/collectors.mjs && node --check weather/state.mjs && node --check weather/published-state.mjs && node --check scripts/restore-published-weather.mjs && node --check weather/http-client.mjs && node --check weather/open-meteo.mjs && node --check scripts/collect-weather.mjs && node --check scripts/prepare-site.mjs && node --check scripts/merge-weather-state.mjs && node --check public/forecast-core.js && node --check public/daily-rows.js && node --test test/shared-sites.test.mjs test/daily-rows.test.mjs test/published-weather.test.mjs",
-    "preview:sites": "node scripts/preview-sites.mjs"
+    "build": "node scripts/build.mjs",
+    "collect": "node scripts/collect-weather.mjs",
+    "preview": "node scripts/preview.mjs",
+    "check": "node scripts/check.mjs",
+    "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
-    "@maplibre/maplibre-gl-leaflet": "0.1.4",
-    "@meteocons/svg-static": "^0.1.0",
-    "geotiff": "^3.0.5",
-    "h5wasm": "^0.10.3",
-    "maplibre-gl": "5.24.0",
-    "nodemailer": "^9.0.5",
-    "proj4": "^2.21.0"
+    "geotiff": "3.0.5"
   }
 }

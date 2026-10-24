@@ -261,6 +261,47 @@ export function buildDailyRows({ dashboard = {}, week = {}, now = Date.now(), ti
   }).filter(day => day.sources.length);
 }
 
+// Keep independent scenarios for the hover details; the displayed forecast
+// continues to use its existing source priorities.
+export function buildDailySourceRows({ dashboard = {}, week = {}, ...options } = {}) {
+  return [
+    ['AROME', { dashboard: { arome: dashboard.arome } }, dashboard.arome],
+    ['ARPEGE', { week }, week],
+    ['Open-Meteo', { dashboard: { openMeteo: dashboard.openMeteo } }, dashboard.openMeteo]
+  ].filter(([, , source]) => source?.hours?.length).map(([name, input, source]) => ({
+    name, hours: source.hours, days: buildDailyRows({ ...options, ...input })
+  }));
+}
+
+export function dailyPeriodSourceSummaries(sourceRows, date, start, end, now = Date.now()) {
+  return sourceRows.flatMap(source => {
+    const day = source.days.find(day => day.date === date);
+    if (!day) return [];
+    const summary = dailyPeriodSummary(day, start, end, now);
+    if (!summary.available) return [];
+    const periodHours = source.hours.filter(hour => {
+      const stop = Date.parse(hour.rainIntervalEnd || hour.time);
+      const begin = hour.rainIntervalStart ? Date.parse(hour.rainIntervalStart) : stop - HOUR;
+      return stop > summary.begin && begin < end;
+    });
+    const probabilities = periodHours.map(hour => hour.probability).filter(valid);
+    const codes = periodHours.map(hour => hour.weatherCode).filter(valid);
+    const amountBetween = (begin, end) => summary.intervals.reduce((sum, interval) =>
+      sum + interval.rain * Math.max(0, Math.min(end, interval.end) - Math.max(begin, interval.start)) / (interval.end - interval.start), 0);
+    const edges = [...new Set([summary.begin, ...summary.intervals.flatMap(interval => [interval.start, interval.end - 3 * HOUR])])]
+      .filter(time => time >= summary.begin && time < end);
+    const rain3h = Math.max(0, ...edges.map(time => amountBetween(time, Math.min(time + 3 * HOUR, end))));
+    const storms = summary.samples.filter(sample => sample.storm === 1 && sample.stamp >= summary.begin && sample.stamp < end);
+    const overlapsRain = (sample, amount) => summary.intervals.some(interval => interval.nativeRain >= amount
+      && sample.stamp >= interval.nativeStart && sample.stamp < interval.nativeEnd);
+    const stormRainOverlap = storms.some(sample => overlapsRain(sample, 5));
+    const stormRainWindOverlap = storms.some(sample => (sample.windSpeed >= 30 || sample.windGust >= 50)
+      && overlapsRain(sample, 1));
+    return [{ name: source.name, ...summary, probability: probabilities.length ? Math.max(...probabilities) : null,
+      rain3h, stormRainOverlap, stormRainWindOverlap, weatherCode: codes.length ? Math.max(...codes) : null }];
+  });
+}
+
 function extent(samples, key, fallback) {
   const entries = values(samples, key);
   return entries.length ? [Math.min(...entries), Math.max(...entries)] : fallback;
@@ -540,7 +581,7 @@ export function dailyChartMarkup(day, { now = Date.now(), state = createDailyCha
     return `<g class="chart-point${phaseClass}"${group.edge ? ' data-adjacent-day="true"' : ''} data-rain-amount="${group.rain}" data-rain-rate="${rate}" data-rain-hours="${hours}" tabindex="${state.opacities.rain ? 0 : -1}" data-tooltip="${escape(detail)}" aria-label="${escape(detail)}"><rect x="${left + gap}" y="${height - bar}" width="${Math.max(.1, right - left - gap * 2)}" height="${bar}" class="day-combined-rain${group.edge ? ' day-adjacent-rain' : ''}"/>${snowHatch}${group.edge ? '' : label}</g>`;
   }).join(''));
   const tickFormat = new Intl.DateTimeFormat('fr-FR', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-  // Hours and pictograms share a fixed column, as on the Tatins timeline.
+  // Hours and pictograms share a fixed column, as on the site timeline.
   // Moving or hiding the temperature curve does not move or hide this header.
   const evening = day.pastUntil >= localTime(day.date, 18, timezone) && day.pastUntil < day.end
     && !groups.some(group => group.start >= day.pastUntil);
@@ -704,11 +745,11 @@ export function dailyRowsMarkup(days, { now = Date.now(), timezone = 'Europe/Par
     const widthControl = `<label class="day-width-control" hidden title="Une heure par créneau en journée, nuit comprimée"><input type="checkbox"${state.showHourly ? ' checked' : ''} aria-label="Afficher le détail heure par heure du ${day.date}">Afficher le détail heure par heure</label>`;
     const chart = `<div class="day-combined-body">${controlsMarkup(state.opacities)}<div class="day-chart-scroll" role="region" tabindex="0" aria-label="Frise du ${day.date}"><div class="day-chart-content">${collapsible ? '' : renderChart(day, state)}</div></div></div>`;
     if (collapsible) {
-      return `<div class="terre-rouge-day forecast-day-periods" data-day-date="${day.date}"><article style="order:${index * 2}" class="daily-forecast-card${day.trend ? ' forecast-day-trend' : ''}" aria-label="${escape(label + ' ' + shortDate.format(day.start))}"><header>${dateHeading}${headingTools}</header><div class="daily-period-grid">${periodsMarkup(day, state)}</div></article><section class="forecast-day-row day-chart-panel terre-rouge-chart-panel" id="day-chart-${day.date}" style="order:${index * 2 - 1}" aria-label="Courbe du ${escape(shortDate.format(day.start))}"${state.chartOpen ? '' : ' hidden'}><header class="forecast-day-header"><h3>${escape(label)} <time datetime="${day.date}">${escape(shortDate.format(day.start))}</time></h3><button type="button" class="day-chart-close" aria-label="Fermer la courbe du ${escape(shortDate.format(day.start))}">×</button></header><div class="day-chart-options">${widthControl}</div>${chart}</section></div>`;
+      return `<div class="bulletin-day forecast-day-periods" data-day-date="${day.date}"><article style="order:${index * 2}" class="daily-forecast-card${day.trend ? ' forecast-day-trend' : ''}" aria-label="${escape(label + ' ' + shortDate.format(day.start))}"><header>${dateHeading}${headingTools}</header><div class="daily-period-grid">${periodsMarkup(day, state)}</div></article><section class="forecast-day-row day-chart-panel bulletin-chart-panel" id="day-chart-${day.date}" style="order:${index * 2 - 1}" aria-label="Courbe du ${escape(shortDate.format(day.start))}"${state.chartOpen ? '' : ' hidden'}><header class="forecast-day-header"><h3>${escape(label)} <time datetime="${day.date}">${escape(shortDate.format(day.start))}</time></h3><button type="button" class="day-chart-close" aria-label="Fermer la courbe du ${escape(shortDate.format(day.start))}">×</button></header><div class="day-chart-options">${widthControl}</div>${chart}</section></div>`;
     }
     return `<article class="forecast-day-row${day.trend ? ' forecast-day-trend' : ''}" data-day-date="${day.date}" aria-label="${escape(label + ' ' + shortDate.format(day.start))}"><header class="forecast-day-header">${dateHeading}${icon}${summary}${widthControl}</header>${chart}</article>`;
   }).join('');
-  return `<section class="${collapsible ? 'daily-cards-view terre-rouge-cards-view' : 'forecast-daily-rows'}" aria-label="Prévisions quotidiennes sur ${days.length} jours"><div class="${collapsible ? 'daily-cards-grid terre-rouge-cards-grid' : 'daily-rows-list'}">${rows}</div></section>`;
+  return `<section class="${collapsible ? 'daily-cards-view bulletin-cards-view' : 'forecast-daily-rows'}" aria-label="Prévisions quotidiennes sur ${days.length} jours"><div class="${collapsible ? 'daily-cards-grid bulletin-cards-grid' : 'daily-rows-list'}">${rows}</div></section>`;
 }
 
 export function piafChartMarkup(forecast, { now = Date.now(), width = 600, compact = false, timezone = 'Europe/Paris', dashboard = {}, week = {}, iconMarkup = () => '', backgroundForTime = () => '#f7fafc', updateMarkup = () => '', chartIconMarkup = '', hazardsMarkup = () => '' } = {}) {

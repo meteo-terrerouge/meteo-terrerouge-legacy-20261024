@@ -1,6 +1,6 @@
-import { createNowcastEngine, isNightAtTatins } from './nowcast/engine.js';
+import { createNowcastEngine, isNightAtLocation } from './nowcast/engine.js';
 
-// Use the same PIAF aggregation and message rules as Tatins, without computing
+// PIAF aggregation and forecast messages without computing
 // radar trajectories or synthesising radar observations.
 export function prepareBasicForecast(data, now = Date.now()) {
   const engine = createNowcastEngine({ now, includePassageMaps: false });
@@ -21,7 +21,7 @@ export function prepareBasicForecast(data, now = Date.now()) {
   const storm = wind.some(h => h.stormSignal === true);
   const timelineSlots = engine.sandboxThreeHourSlots(allSteps, [], [], data?.arome?.hours || [], now, quarters).map(slot => ({
     ...slot,
-    night: isNightAtTatins(new Date((slot.start + slot.end) / 2), data?.latitude, data?.longitude),
+    night: isNightAtLocation(new Date((slot.start + slot.end) / 2), data?.latitude, data?.longitude),
     modelStorm: (data?.arome?.hours || []).some(hour => hour.stormSignal === true
       && new Date(hour.time).getTime() < slot.end && new Date(hour.time).getTime() + 3600000 > slot.start)
   }));
